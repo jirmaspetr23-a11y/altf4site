@@ -259,6 +259,12 @@ db.serialize(() => {
   db.run('ALTER TABLE Users ADD COLUMN gaming_rank TEXT', err => {
     if (err && !err.message.includes('duplicate column name')) console.error('Chyba při migraci gaming_rank:', err.message);
   });
+  db.run('ALTER TABLE Users ADD COLUMN riot_id TEXT', err => {
+    if (err && !err.message.includes('duplicate column name')) console.error('Chyba při migraci riot_id:', err.message);
+  });
+  db.run('ALTER TABLE Users ADD COLUMN steam_profile TEXT', err => {
+    if (err && !err.message.includes('duplicate column name')) console.error('Chyba při migraci steam_profile:', err.message);
+  });
   db.run('ALTER TABLE InviteCodes ADD COLUMN used_by INTEGER', err => {
     if (err && !err.message.includes('duplicate column name')) console.error('Chyba při migraci used_by:', err.message);
   });
@@ -1508,7 +1514,7 @@ app.get('/api/health', (req, res) => {
 async function handleSession(req, res) {
   try {
     const user = await get(
-      'SELECT username, role, game_role, gaming_rank, is_2fa_verified, bio, avatar_url FROM Users WHERE id = ?',
+      'SELECT username, role, game_role, gaming_rank, riot_id, steam_profile, is_2fa_verified, bio, avatar_url FROM Users WHERE id = ?',
       [req.auth.userId]
     );
 
@@ -1516,7 +1522,7 @@ async function handleSession(req, res) {
       return res.status(401).json({ error: 'Účet není aktivní.' });
     }
 
-    res.json({ success: true, username: user.username, role: user.role || 'member', game_role: user.game_role || '', gaming_rank: user.gaming_rank || '', bio: user.bio || '', avatar_url: user.avatar_url || '' });
+    res.json({ success: true, username: user.username, role: user.role || 'member', game_role: user.game_role || '', gaming_rank: user.gaming_rank || '', riot_id: user.riot_id || '', steam_profile: user.steam_profile || '', bio: user.bio || '', avatar_url: user.avatar_url || '' });
   } catch (err) {
     console.error('Chyba při ověřování relace:', err.message);
     res.status(500).json({ error: 'Interní chyba serveru.' });
@@ -1530,7 +1536,7 @@ app.get('/api/user', requireAuth, handleSession);
 app.get('/api/community/players', requireAuth, async (req, res) => {
   try {
     const players = await all(
-      'SELECT id, username, role, game_role, gaming_rank FROM Users WHERE is_2fa_verified = 1 AND banned_at IS NULL ORDER BY username COLLATE NOCASE'
+      'SELECT id, username, role, game_role, gaming_rank, riot_id, steam_profile FROM Users WHERE is_2fa_verified = 1 AND banned_at IS NULL ORDER BY username COLLATE NOCASE'
     );
     res.json({
       success: true,
@@ -1540,6 +1546,8 @@ app.get('/api/community/players', requireAuth, async (req, res) => {
         role: player.role || 'member',
         game_role: player.game_role || '',
         gaming_rank: player.gaming_rank || '',
+        riot_id: player.riot_id || '',
+        steam_profile: player.steam_profile || '',
         isCurrentUser: player.id === req.auth.userId
       }))
     });
@@ -1552,7 +1560,7 @@ app.get('/api/community/players', requireAuth, async (req, res) => {
 app.get('/api/users', requireAuth, async (req, res) => {
   try {
     const users = await all(
-      'SELECT id, username, role, game_role, gaming_rank FROM Users WHERE is_2fa_verified = 1 AND banned_at IS NULL ORDER BY username COLLATE NOCASE'
+      'SELECT id, username, role, game_role, gaming_rank, riot_id, steam_profile FROM Users WHERE is_2fa_verified = 1 AND banned_at IS NULL ORDER BY username COLLATE NOCASE'
     );
     res.json({ success: true, users });
   } catch (err) {
@@ -1566,6 +1574,8 @@ app.put('/api/users/me', requireAuth, async (req, res) => {
   const bio = typeof req.body.bio === 'string' ? req.body.bio.trim() : '';
   const avatar_url = typeof req.body.avatar_url === 'string' ? req.body.avatar_url.trim() : '';
   const gaming_rank = typeof req.body.gaming_rank === 'string' ? req.body.gaming_rank.trim().slice(0, 64) : (typeof req.body.rank === 'string' ? req.body.rank.trim().slice(0, 64) : '');
+  const riot_id = typeof req.body.riot_id === 'string' ? req.body.riot_id.trim().slice(0, 64) : '';
+  const steam_profile = typeof req.body.steam_profile === 'string' ? req.body.steam_profile.trim().slice(0, 200) : '';
 
   if (!username || username.length < 2 || username.length > 32) {
     return res.status(400).json({ error: 'Přezdívka musí mít 2 až 32 znaků.' });
@@ -1578,12 +1588,12 @@ app.put('/api/users/me', requireAuth, async (req, res) => {
     }
 
     await run(
-      'UPDATE Users SET username = ?, bio = ?, avatar_url = ?, gaming_rank = ? WHERE id = ?',
-      [username, bio || null, avatar_url || null, gaming_rank || null, req.auth.userId]
+      'UPDATE Users SET username = ?, bio = ?, avatar_url = ?, gaming_rank = ?, riot_id = ?, steam_profile = ? WHERE id = ?',
+      [username, bio || null, avatar_url || null, gaming_rank || null, riot_id || null, steam_profile || null, req.auth.userId]
     );
 
     const user = await get(
-      'SELECT id, username, role, bio, avatar_url, gaming_rank FROM Users WHERE id = ?',
+      'SELECT id, username, role, bio, avatar_url, gaming_rank, riot_id, steam_profile FROM Users WHERE id = ?',
       [req.auth.userId]
     );
 
@@ -1595,7 +1605,9 @@ app.put('/api/users/me', requireAuth, async (req, res) => {
         role: user.role || 'member',
         bio: user.bio || '',
         avatar_url: user.avatar_url || '',
-        gaming_rank: user.gaming_rank || ''
+        gaming_rank: user.gaming_rank || '',
+        riot_id: user.riot_id || '',
+        steam_profile: user.steam_profile || ''
       }
     });
   } catch (err) {

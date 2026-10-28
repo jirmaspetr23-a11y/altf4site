@@ -2208,6 +2208,29 @@ body {
 .role-badge.role-vip { background: rgba(180, 120, 255, 0.16); color: #b478ff; border-color: rgba(180,120,255,0.4); }
 .role-badge.role-member { background: rgba(255,255,255,0.06); color: #b8afb5; }
 .rank-badge { background: rgba(120, 255, 180, 0.12); color: #78ffb4; border-color: rgba(120,255,180,0.35); }
+.member-game-id {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: 6px;
+  font-size: 10px;
+  color: #a8b0bc;
+  white-space: nowrap;
+}
+.member-copy-btn {
+  border: 0;
+  border-radius: 6px;
+  padding: 2px 6px;
+  font-size: 10px;
+  font-weight: 600;
+  cursor: pointer;
+  background: rgba(59, 158, 255, 0.16);
+  color: #7cc8ff;
+  border: 1px solid rgba(59, 158, 255, 0.25);
+  transition: background .15s ease, color .15s ease;
+}
+.member-copy-btn:hover { background: rgba(59, 158, 255, 0.30); color: #fff; }
+
 
 .message-author-badges {
   display: inline-flex;

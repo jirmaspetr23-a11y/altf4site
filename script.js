@@ -52,6 +52,8 @@ const scrimStatus = document.getElementById('scrim-status');
   const profileBio = document.getElementById('profile-bio');
   const profileAvatarUrl = document.getElementById('profile-avatar-url');
   const profileGamingRank = document.getElementById('profile-gaming-rank');
+  const profileRiotId = document.getElementById('profile-riot-id');
+  const profileSteam = document.getElementById('profile-steam');
 
   const profileStatus = document.getElementById('profile-status');
   const profileCancel = document.getElementById('profile-cancel');
@@ -1649,6 +1651,36 @@ const scrimStatus = document.getElementById('scrim-status');
         rankBadge.textContent = player.gaming_rank;
         badges.push(rankBadge);
       }
+      if (player.riot_id) {
+        const riotWrap = document.createElement('span');
+        riotWrap.className = 'member-game-id';
+        riotWrap.textContent = `Riot: ${player.riot_id}`;
+        const copyBtn = document.createElement('button');
+        copyBtn.type = 'button';
+        copyBtn.className = 'member-copy-btn';
+        copyBtn.textContent = 'Kopírovat';
+        copyBtn.addEventListener('click', async (e) => {
+          e.stopPropagation();
+          try { await navigator.clipboard.writeText(player.riot_id); copyBtn.textContent = 'Zkopírováno'; setTimeout(() => (copyBtn.textContent = 'Kopírovat'), 1200); } catch (err) { console.error(err); }
+        });
+        riotWrap.appendChild(copyBtn);
+        identity.appendChild(riotWrap);
+      }
+      if (player.steam_profile) {
+        const steamWrap = document.createElement('span');
+        steamWrap.className = 'member-game-id';
+        steamWrap.textContent = `Steam: ${player.steam_profile}`;
+        const copyBtn = document.createElement('button');
+        copyBtn.type = 'button';
+        copyBtn.className = 'member-copy-btn';
+        copyBtn.textContent = 'Kopírovat';
+        copyBtn.addEventListener('click', async (e) => {
+          e.stopPropagation();
+          try { await navigator.clipboard.writeText(player.steam_profile); copyBtn.textContent = 'Zkopírováno'; setTimeout(() => (copyBtn.textContent = 'Kopírovat'), 1200); } catch (err) { console.error(err); }
+        });
+        steamWrap.appendChild(copyBtn);
+        identity.appendChild(steamWrap);
+      }
       identity.append(...badges);
       row.append(avatar, identity);
 
@@ -2374,6 +2406,52 @@ const scrimStatus = document.getElementById('scrim-status');
         alert(err.message || 'Obrázek se nepodařilo odeslat.');
       } finally {
         sendButton.disabled = false;
+      }
+    });
+  }
+
+  if (btnEditProfile) {
+    btnEditProfile.addEventListener('click', async () => {
+      try {
+        const me = await apiGet('/api/me', sessionToken);
+        if (profileUsername) profileUsername.value = me.username || '';
+        if (profileBio) profileBio.value = me.bio || '';
+        if (profileAvatarUrl) profileAvatarUrl.value = me.avatar_url || '';
+        if (profileGamingRank) profileGamingRank.value = me.gaming_rank || '';
+        if (profileRiotId) profileRiotId.value = me.riot_id || '';
+        if (profileSteam) profileSteam.value = me.steam_profile || '';
+      } catch (err) {
+        console.error(err);
+      }
+      if (profileModal) {
+        profileModal.classList.remove('hidden');
+        profileModal.setAttribute('aria-hidden', 'false');
+      }
+      if (profileStatus) profileStatus.textContent = '';
+    });
+  }
+  if (profileModalClose) profileModalClose.addEventListener('click', () => {
+    if (profileModal) { profileModal.classList.add('hidden'); profileModal.setAttribute('aria-hidden', 'true'); }
+  });
+  if (profileCancel) profileCancel.addEventListener('click', () => {
+    if (profileModal) { profileModal.classList.add('hidden'); profileModal.setAttribute('aria-hidden', 'true'); }
+  });
+  if (profileForm) {
+    profileForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      try {
+        await apiPut('/api/users/me', {
+          username: profileUsername ? profileUsername.value.trim() : '',
+          bio: profileBio ? profileBio.value.trim() : '',
+          avatar_url: profileAvatarUrl ? profileAvatarUrl.value.trim() : '',
+          gaming_rank: profileGamingRank ? profileGamingRank.value.trim() : '',
+          riot_id: profileRiotId ? profileRiotId.value.trim() : '',
+          steam_profile: profileSteam ? profileSteam.value.trim() : ''
+        });
+        if (profileStatus) profileStatus.textContent = 'Profil uložen.';
+        if (profileModal) { profileModal.classList.add('hidden'); profileModal.setAttribute('aria-hidden', 'true'); }
+      } catch (err) {
+        if (profileStatus) profileStatus.textContent = err.message || 'Uložení selhalo.';
       }
     });
   }
