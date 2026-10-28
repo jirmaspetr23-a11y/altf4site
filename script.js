@@ -1140,27 +1140,26 @@ const scrimStatus = document.getElementById('scrim-status');
       : `<div class="scrim-empty"><div class="scrim-empty__icon" aria-hidden="true">${emptyIcon}</div><p class="scrim-empty__text">${emptyText}</p></div>`;
     scrimsContainer.innerHTML = `
       <div class="scrim-view">
-        <div class="scrim-view-header">
-          <div class="feed-heading">
-            <h2>Scrim Schedule</h2>
-            <span>TRÉNINKY · SCRIMY</span>
-          </div>
-          ${addBtn}
+        <div class="feed-heading">
+          <h2>Scrim Schedule</h2>
+          <span>TRÉNINKY · SCRIMY</span>
         </div>
-        <section class="scrim-section">
+        <p class="scrim-view-subtitle">Plán tréninků a scrimů</p>
+        ${addBtn}
+        <div class="scrim-section-card">
           <div class="scrim-section-header">
             <h3 class="scrim-section-title">Nadcházející</h3>
             <span class="scrim-section-count">${upcoming.length}</span>
           </div>
-          ${renderList(upcoming, 'Žádné nadcházející scrimy.', '⚔️')}
-        </section>
-        <section class="scrim-section">
+          ${renderList(upcoming, 'Žádné nadcházející scrimy.', '📅')}
+        </div>
+        <div class="scrim-section-card">
           <div class="scrim-section-header">
             <h3 class="scrim-section-title">Odehrané</h3>
             <span class="scrim-section-count">${past.length}</span>
           </div>
           ${renderList(past, 'Zatím žádné odehrané scrimy.', '🏁')}
-        </section>
+        </div>
       </div>`;
     bindScrimAddButton(canManage);
     bindScrimDeleteButtons(canManage);

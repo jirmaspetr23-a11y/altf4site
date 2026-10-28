@@ -2836,7 +2836,8 @@ html, body {
   letter-spacing: 0.02em;
 /* --- Scrim Schedule --- */
 .scrims-container { max-width: 1100px; margin: 0 auto; width: 100%; }
-.scrim-view { display: flex; flex-direction: column; gap: 22px; }
+.scrim-view { display: flex; flex-direction: column; gap: 18px; }
+.scrim-view-subtitle { margin: 0; font-size: 13px; color: #a79da4; line-height: 1.5; }
 .scrim-view-header { display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap; padding-bottom: 8px; border-bottom: 1px solid rgba(255,255,255,0.06); }
 .scrim-view .feed-heading { display: flex; flex-direction: column; gap: 2px; margin: 0; }
 .scrim-view .feed-heading h2 { color: #f5f7fa; font-size: 20px; font-weight: 800; letter-spacing: -0.01em; margin: 0; }
@@ -2850,6 +2851,16 @@ html, body {
 .scrim-section-title { margin: 0; font-size: 12px; font-weight: 800; letter-spacing: 0.14em; text-transform: uppercase; color: #8a8f98; }
 .scrim-section-count { display: inline-flex; align-items: center; justify-content: center; min-width: 22px; height: 20px; padding: 0 7px; border-radius: 999px; font-size: 11px; font-weight: 700; color: #9ca3af; background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.08); }
 .scrim-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px,1fr)); gap: 16px; }
+.scrim-section-card {
+  background: linear-gradient(180deg, rgba(22, 26, 36, 0.92), rgba(12, 14, 20, 0.96));
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 12px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.35);
+  padding: 20px 20px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
 .scrim-card { position: relative; display: flex; flex-direction: column; gap: 10px; padding: 18px 20px; border-radius: 14px; background: linear-gradient(180deg, rgba(24,28,38,0.95), rgba(12,14,20,0.98)); border: 1px solid rgba(255,255,255,0.07); box-shadow: 0 10px 30px rgba(0,0,0,0.35); transition: transform .18s ease, border-color .18s ease, box-shadow .18s ease; overflow: hidden; }
 .scrim-card::before { content: ''; position: absolute; inset: 0 0 auto 0; height: 2px; background: linear-gradient(90deg, transparent, rgba(78,168,255,0.6), transparent); opacity: 0; transition: opacity .18s ease; }
 .scrim-card:hover { transform: translateY(-3px); border-color: rgba(255,255,255,0.14); box-shadow: 0 18px 44px rgba(0,0,0,0.45); }
