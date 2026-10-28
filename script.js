@@ -1149,14 +1149,12 @@ const scrimStatus = document.getElementById('scrim-status');
         <div class="scrim-section-card">
           <div class="scrim-section-header">
             <h3 class="scrim-section-title">Nadcházející</h3>
-            <span class="scrim-section-count">${upcoming.length}</span>
           </div>
           ${renderList(upcoming, 'Žádné nadcházející scrimy.', '📅')}
         </div>
         <div class="scrim-section-card">
           <div class="scrim-section-header">
             <h3 class="scrim-section-title">Odehrané</h3>
-            <span class="scrim-section-count">${past.length}</span>
           </div>
           ${renderList(past, 'Zatím žádné odehrané scrimy.', '🏁')}
         </div>
