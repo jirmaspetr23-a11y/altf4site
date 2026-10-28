@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Herní tým – Přihlášení</title>
-  <link rel="stylesheet" href="style.css?v=20261028c">
+  <link rel="stylesheet" href="style.css?v=20261028f">
 </head>
 <body>
 
@@ -475,6 +475,20 @@
           <button type="button" class="admin-secondary-btn" id="match-cancel">Zrušit</button>
         </div>
       </form>
+    </div>
+  </div>
+
+  <div id="wiki-view-modal" class="admin-modal hidden" aria-hidden="true">
+    <div class="admin-modal-card wiki-view-modal-card">
+      <header class="admin-modal-header">
+        <div>
+          <p class="news-kicker">ALT-F4 ALLSTARS · WIKI</p>
+          <h2 id="wiki-view-title">Název článku</h2>
+          <span class="wiki-view-meta" id="wiki-view-meta"></span>
+        </div>
+        <button type="button" class="admin-close-button" id="wiki-view-close" aria-label="Zavřít">×</button>
+      </header>
+      <div class="wiki-view-body" id="wiki-view-body"></div>
     </div>
   </div>
 

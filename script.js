@@ -944,20 +944,63 @@ const scrimStatus = document.getElementById('scrim-status');
                 <h3>${escapeHtml(page.title)}</h3>
                 <span class="wiki-page-meta">${escapeHtml(page.updated_by_name)} · ${formatMatchDate(page.updated_at)}</span>
               </header>
-              <div class="wiki-page-content">${escapeHtml(page.content).replace(/\n/g, '<br>')}</div>
-              ${canEdit ? `<div class="wiki-page-actions"><button type="button" class="admin-secondary-btn" data-wiki-edit="${page.id}">Upravit</button></div>` : ''}
+              <div class="wiki-page-preview">${escapeHtml(String(page.content || '').replace(/\s+/g, ' ').trim().slice(0, 150))}${String(page.content || '').length > 150 ? '…' : ''}</div>
+              <div class="wiki-page-actions">
+                <button type="button" class="admin-btn wiki-read-more-btn" data-wiki-id="${page.id}">Zobrazit</button>
+                ${canEdit ? `<button type="button" class="admin-secondary-btn" data-wiki-edit="${page.id}">Upravit</button>` : ''}
+              </div>
             </article>
           `).join('')}
         </div>
       </div>
     `;
     bindWikiAddButton();
+    window.__wikiPages = pages;
+    bindWikiViewButtons();
   }
 
   function bindWikiAddButton() {
     const btn = document.getElementById('wiki-add-btn');
     if (btn) btn.addEventListener('click', () => openWikiModal());
   }
+  function bindWikiViewButtons() {
+    const closeBtn = document.getElementById('wiki-view-close');
+    if (closeBtn && !closeBtn.dataset.bound) {
+      closeBtn.dataset.bound = '1';
+      closeBtn.addEventListener('click', closeWikiViewModal);
+    }
+    document.querySelectorAll('.wiki-read-more-btn').forEach(btn => {
+      if (btn.dataset.bound) return;
+      btn.dataset.bound = '1';
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const id = btn.dataset.wikiId;
+        const page = (window.__wikiPages || []).find(p => String(p.id) === String(id));
+        if (page) openWikiViewModal(page);
+      });
+    });
+  }
+
+  function openWikiViewModal(page) {
+    const modal = document.getElementById('wiki-view-modal');
+    if (!modal) return;
+    const titleEl = document.getElementById('wiki-view-title');
+    const metaEl = document.getElementById('wiki-view-meta');
+    const bodyEl = document.getElementById('wiki-view-body');
+    if (titleEl) titleEl.textContent = page.title || '';
+    if (metaEl) metaEl.textContent = `${page.updated_by_name || ''} · ${formatMatchDate(page.updated_at)}`;
+    if (bodyEl) bodyEl.innerHTML = escapeHtml(page.content || '').replace(/\n/g, '<br>');
+    modal.classList.remove('hidden');
+    modal.setAttribute('aria-hidden', 'false');
+  }
+
+  function closeWikiViewModal() {
+    const modal = document.getElementById('wiki-view-modal');
+    if (!modal) return;
+    modal.classList.add('hidden');
+    modal.setAttribute('aria-hidden', 'true');
+  }
+
 
   function toStreamEmbed(input) {
     if (!input) return '';
