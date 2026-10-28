@@ -1118,37 +1118,48 @@ const scrimStatus = document.getElementById('scrim-status');
 
   async function loadScrims() {
     if (!scrimsContainer) return;
-    scrimsContainer.innerHTML = '<p class="wiki-empty">Načítám scrimy…</p>';
+    scrimsContainer.innerHTML = '<div class="scrim-empty"><div class="scrim-empty__icon" aria-hidden="true">⏳</div><p class="scrim-empty__text">Načítám scrimy…</p></div>';
     const canManage = ['owner', 'moderator', 'captain'].includes(currentRole);
     try {
       const result = await apiGet('/api/scrims', sessionToken);
       renderScrims(result.scrims || [], canManage);
     } catch (err) {
       console.error(err);
-      scrimsContainer.innerHTML = '<p class="wiki-empty">Scrimy se nepodařilo načíst.</p>';
+      scrimsContainer.innerHTML = '<div class="scrim-empty"><div class="scrim-empty__icon" aria-hidden="true">⚠️</div><p class="scrim-empty__text">Scrimy se nepodařilo načíst.</p></div>';
     }
   }
 
   function renderScrims(scrims, canManage) {
     if (!scrimsContainer) return;
-    const addBtn = canManage ? '<button type="button" class="admin-btn" id="scrim-add-btn">+ Naplánovat scrim</button>' : '';
+    const addBtn = canManage ? '<button type="button" class="admin-btn scrim-add-btn" id="scrim-add-btn"><span class="scrim-add-btn__icon">+</span> Naplánovat scrim</button>' : '';
     const now = new Date();
     const upcoming = scrims.filter(s => s.status !== 'completed' && new Date(s.scrim_time) >= new Date(now.getTime() - 3600000));
     const past = scrims.filter(s => !upcoming.includes(s));
-    const renderList = (list, emptyText) => list.length
+    const renderList = (list, emptyText, emptyIcon) => list.length
       ? `<div class="scrim-list">${list.map(s => renderScrimCard(s, canManage)).join('')}</div>`
-      : `<p class="wiki-empty">${emptyText}</p>`;
+      : `<div class="scrim-empty"><div class="scrim-empty__icon" aria-hidden="true">${emptyIcon}</div><p class="scrim-empty__text">${emptyText}</p></div>`;
     scrimsContainer.innerHTML = `
       <div class="scrim-view">
-        <div class="feed-heading"><h2>Scrim Schedule</h2><span>TRÉNINKY · SCRIMY</span></div>
-        ${addBtn}
+        <div class="scrim-view-header">
+          <div class="feed-heading">
+            <h2>Scrim Schedule</h2>
+            <span>TRÉNINKY · SCRIMY</span>
+          </div>
+          ${addBtn}
+        </div>
         <section class="scrim-section">
-          <h3 class="scrim-section-title">Nadcházející</h3>
-          ${renderList(upcoming, 'Žádné nadcházející scrimy.')}
+          <div class="scrim-section-header">
+            <h3 class="scrim-section-title">Nadcházející</h3>
+            <span class="scrim-section-count">${upcoming.length}</span>
+          </div>
+          ${renderList(upcoming, 'Žádné nadcházející scrimy.', '⚔️')}
         </section>
         <section class="scrim-section">
-          <h3 class="scrim-section-title">Odehrané</h3>
-          ${renderList(past, 'Zatím žádné odehrané scrimy.')}
+          <div class="scrim-section-header">
+            <h3 class="scrim-section-title">Odehrané</h3>
+            <span class="scrim-section-count">${past.length}</span>
+          </div>
+          ${renderList(past, 'Zatím žádné odehrané scrimy.', '🏁')}
         </section>
       </div>`;
     bindScrimAddButton(canManage);
@@ -1163,10 +1174,12 @@ const scrimStatus = document.getElementById('scrim-status');
     const deleteBtn = canManage && currentRole === 'owner' ? `<button type="button" class="scrim-delete-btn" data-id="${s.id}" title="Smazat">Smazat</button>` : '';
     const copyBtn = s.server_ip ? `<button type="button" class="scrim-copy-btn" data-ip="${escapeHtml(s.server_ip)}">Kopírovat server/lobby</button>` : '';
     return `
-      <article class="scrim-card">
+      <article class="scrim-card ${s.status === 'completed' ? 'scrim-card--completed' : ''}">
         <div class="scrim-card-header">
-          <span class="scrim-badge scrim-badge--${s.status === 'completed' ? 'done' : 'upcoming'}">${statusLabel}</span>
-          ${s.status === 'completed' ? `<span class="scrim-result scrim-result--${s.result}">${resultLabel}</span>` : ''}
+          <div class="scrim-card__badges">
+            <span class="scrim-badge scrim-badge--${s.status === 'completed' ? 'done' : 'upcoming'}">${statusLabel}</span>
+            ${s.status === 'completed' ? `<span class="scrim-result scrim-result--${s.result}">${resultLabel}</span>` : ''}
+          </div>
           ${deleteBtn}
         </div>
         <h3 class="scrim-opponent">${escapeHtml(s.opponent)}</h3>
