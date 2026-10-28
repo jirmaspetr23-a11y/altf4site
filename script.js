@@ -2357,6 +2357,13 @@ const scrimStatus = document.getElementById('scrim-status');
   });
 
   workspaceBackdrop.addEventListener('click', closeMobilePanels);
+  const channelSidebarEl = document.getElementById('channel-sidebar');
+  if (channelSidebarEl) {
+    channelSidebarEl.addEventListener('click', (e) => {
+      if (e.target.closest('.channel-button')) closeMobilePanels();
+    });
+  }
+
 
   if (registerLink) {
     registerLink.addEventListener('click', (event) => {
@@ -2736,19 +2743,6 @@ channelContent.addEventListener('click', async event => {
       sendButton.disabled = false;
     }
   });
-
-  mobileChannelsToggle.addEventListener('click', () => {
-    communityApp.classList.toggle('sidebar-open');
-    communityApp.classList.remove('members-open');
-  });
-
-  mobileMembersToggle.addEventListener('click', () => {
-    communityApp.classList.toggle('members-open');
-    communityApp.classList.remove('sidebar-open');
-  });
-
-  workspaceBackdrop.addEventListener('click', closeMobilePanels);
-
 
 
 
