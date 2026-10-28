@@ -111,6 +111,36 @@ db.serialize(() => {
     FOREIGN KEY(created_by) REFERENCES Users(id)
   )`);
 
+  db.run(`CREATE TABLE IF NOT EXISTS clips (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER NOT NULL,
+    title TEXT NOT NULL,
+    url TEXT NOT NULL,
+    description TEXT NOT NULL DEFAULT '',
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY(user_id) REFERENCES Users(id)
+  )`);
+
+  db.run(`CREATE TABLE IF NOT EXISTS clip_votes (
+    clip_id INTEGER NOT NULL,
+    user_id INTEGER NOT NULL,
+    UNIQUE(clip_id, user_id),
+    FOREIGN KEY(clip_id) REFERENCES clips(id),
+    FOREIGN KEY(user_id) REFERENCES Users(id)
+  )`);
+
+  db.run(`CREATE TABLE IF NOT EXISTS stratbook (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER,
+    map_name TEXT NOT NULL DEFAULT '',
+    side TEXT NOT NULL DEFAULT 'attack',
+    title TEXT NOT NULL,
+    content TEXT NOT NULL DEFAULT '',
+    image_url TEXT NOT NULL DEFAULT '',
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY(user_id) REFERENCES Users(id)
+  )`);
+
   // Seed vzorových ocenění do Síně slávy (jen pokud ještě neexistují)
   const hofSeed = [
     ['Tactical Mastermind & Captain', 'S1mtry', 'Vynikající vedení týmu, precizní callouty a taktická příprava na turnajích.', 'mvp'],
@@ -1218,6 +1248,81 @@ app.delete('/api/scrims/:id', requireAuth, requireTeamOwner, async (req, res) =>
     res.status(500).json({ error: 'Interní chyba serveru.' });
   }
 });
+
+// --- Clips Gallery ---
+app.get('/api/clips', requireAuth, async (req, res) => {
+  try {
+    const rows = await all(`
+      SELECT c.id, c.title, c.url, c.description, c.created_at, c.user_id, u.username,
+        (SELECT COUNT(*) FROM clip_votes v WHERE v.clip_id = c.id) AS votes
+      FROM clips c JOIN Users u ON u.id = c.user_id
+      ORDER BY c.created_at DESC
+    `);
+    res.json({ success: true, clips: rows || [] });
+  } catch (err) {
+    console.error('Chyba při načítání klipů:', err.message);
+    res.status(500).json({ error: 'Interní chyba serveru.' });
+  }
+});
+
+app.post('/api/clips', requireAuth, async (req, res) => {
+  try {
+    const title = String(req.body.title || '').trim();
+    const url = String(req.body.url || '').trim();
+    const description = String(req.body.description || '').trim();
+    if (!title || !url) return res.status(400).json({ error: 'Chybí title nebo url.' });
+    const created = await run('INSERT INTO clips (user_id, title, url, description) VALUES (?, ?, ?, ?)', [req.auth.userId, title, url, description]);
+    res.json({ success: true, id: created.lastID });
+  } catch (err) {
+    console.error('Chyba při přidání klipu:', err.message);
+    res.status(500).json({ error: 'Interní chyba serveru.' });
+  }
+});
+
+app.post('/api/clips/:id/vote', requireAuth, async (req, res) => {
+  try {
+    const id = Number(req.params.id);
+    if (!Number.isInteger(id)) return res.status(400).json({ error: 'Neplatné ID.' });
+    await run('INSERT OR IGNORE INTO clip_votes (clip_id, user_id) VALUES (?, ?)', [id, req.auth.userId]);
+    const row = await get('SELECT COUNT(*) AS c FROM clip_votes WHERE clip_id = ?', [id]);
+    res.json({ success: true, votes: row ? row.c : 0 });
+  } catch (err) {
+    console.error('Chyba při hlasování:', err.message);
+    res.status(500).json({ error: 'Interní chyba serveru.' });
+  }
+});
+
+// --- Stratbook ---
+app.get('/api/stratbook', requireAuth, async (req, res) => {
+  try {
+    const rows = await all(`
+      SELECT s.id, s.map_name, s.side, s.title, s.content, s.image_url, s.created_at, u.username
+      FROM stratbook s LEFT JOIN Users u ON u.id = s.user_id
+      ORDER BY s.created_at DESC
+    `);
+    res.json({ success: true, strategies: rows || [] });
+  } catch (err) {
+    console.error('Chyba při načítání stratbooku:', err.message);
+    res.status(500).json({ error: 'Interní chyba serveru.' });
+  }
+});
+
+app.post('/api/stratbook', requireAuth, async (req, res) => {
+  try {
+    const map_name = String(req.body.map_name || '').trim();
+    const side = String(req.body.side || 'attack').trim();
+    const title = String(req.body.title || '').trim();
+    const content = String(req.body.content || '').trim();
+    const image_url = String(req.body.image_url || '').trim();
+    if (!title) return res.status(400).json({ error: 'Chybí title.' });
+    const created = await run('INSERT INTO stratbook (user_id, map_name, side, title, content, image_url) VALUES (?, ?, ?, ?, ?, ?)', [req.auth.userId, map_name, side, title, content, image_url]);
+    res.json({ success: true, id: created.lastID });
+  } catch (err) {
+    console.error('Chyba při přidání strategie:', err.message);
+    res.status(500).json({ error: 'Interní chyba serveru.' });
+  }
+});
+
 
 // --- Events / Tournaments ---
 app.get('/api/events', requireAuth, async (req, res) => {

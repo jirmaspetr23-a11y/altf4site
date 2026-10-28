@@ -3065,3 +3065,26 @@ html, body {
   font-weight: 600;
 }
 }
+/* --- Clips Gallery --- */
+.clips-container { max-width: 1100px; margin: 0 auto; width: 100%; }
+.clips-view { display: flex; flex-direction: column; gap: 18px; }
+.clips-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 16px; }
+.clip-card { background: linear-gradient(180deg, rgba(22, 26, 36, 0.92), rgba(12, 14, 20, 0.96)); border: 1px solid rgba(255,255,255,0.08); border-radius: 12px; padding: 16px 18px; box-shadow: 0 8px 24px rgba(0,0,0,0.25); display: flex; flex-direction: column; gap: 8px; }
+.clip-title { margin: 0; font-size: 16px; font-weight: 800; color: #ffffff; }
+.clip-meta { margin: 0; font-size: 11px; color: #8a8f98; }
+.clip-desc { margin: 0; font-size: 13px; color: #a8b0bc; line-height: 1.5; flex: 1 1 auto; }
+.clip-link { font-size: 12px; color: #7cc8ff; text-decoration: none; }
+.clip-link:hover { text-decoration: underline; }
+.clip-footer { display: flex; justify-content: flex-end; }
+
+/* --- Stratbook --- */
+.stratbook-container { max-width: 1100px; margin: 0 auto; width: 100%; }
+.stratbook-view { display: flex; flex-direction: column; gap: 18px; }
+.stratbook-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 16px; }
+.strat-card { background: linear-gradient(180deg, rgba(22, 26, 36, 0.92), rgba(12, 14, 20, 0.96)); border: 1px solid rgba(255,255,255,0.08); border-radius: 12px; padding: 16px 18px; box-shadow: 0 8px 24px rgba(0,0,0,0.25); display: flex; flex-direction: column; gap: 8px; }
+.strat-meta { font-size: 10px; font-weight: 800; letter-spacing: 0.12em; text-transform: uppercase; color: #8a8f98; }
+.strat-title { margin: 0; font-size: 16px; font-weight: 800; color: #ffffff; }
+.strat-content { margin: 0; font-size: 13px; color: #a8b0bc; line-height: 1.5; white-space: pre-wrap; }
+.strat-link { font-size: 12px; color: #7cc8ff; text-decoration: none; }
+.strat-link:hover { text-decoration: underline; }
+.strat-footer { font-size: 11px; color: #6b7280; margin-top: 4px; }
