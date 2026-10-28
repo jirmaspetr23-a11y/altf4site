@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html lang="cs">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Herní tým – Přihlášení</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+  <!-- Úvodní animace s logem -->
+  <div id="intro-overlay" class="intro-overlay">
+    <video id="intro-video" class="intro-video" muted playsinline preload="auto" poster="/photo/team-logo.jpg" aria-hidden="true">
+      <source src="/video/intro.mp4" type="video/mp4">
+    </video>
+  </div>
+
+  <!-- Přihlašovací formulář (skrytý při startu) -->
+  <div id="login-container" class="login-container">
+    <div class="login-card">
+      <h2>Přihlášení</h2>
+      <form id="login-form">
+        <div class="input-group">
+          <label for="login-username">Přezdívka</label>
+          <input
+            type="text"
+            id="login-username"
+            name="username"
+            placeholder="Hrac123"
+            autocomplete="off"
+            required
+          >
+        </div>
+        <div class="input-group">
+          <label for="2fa-code">2FA kód</label>
+          <input
+            type="text"
+            id="2fa-code"
+            name="2fa-code"
+            maxlength="6"
+            placeholder="123456"
+            autocomplete="off"
+            required
+          >
+        </div>
+        <button type="submit" class="btn-login">Přihlásit</button>
+      </form>
+      <p class="register-link">
+        Nemáte účet? <a href="#" id="register-link">Nová registrace pomocí kódu</a>
+      </p>
+    </div>
+  </div>
+
+  <main id="community-app" class="community-app hidden">
+    <aside class="channel-sidebar" id="channel-sidebar">
+      <header class="team-header">
+        <img src="/photo/team-logo.jpg" alt="" class="team-header-logo">
+        <div class="team-header-name">
+          <strong>ALT-F4</strong>
+          <span>ALLSTARS</span>
+        </div>
+        <span class="team-header-chevron" aria-hidden="true">⌄</span>
+      </header>
+      <nav class="channel-navigation" id="channel-navigation" aria-label="Kanály"></nav>
+      <footer class="account-footer">
+        <div class="account-avatar" id="account-avatar">?</div>
+        <div class="account-identity">
+          <strong id="current-username">Hráč</strong>
+          <span id="current-role-label">Člen týmu</span>
+        </div>
+        <button class="icon-button logout-button" id="logout-button" type="button" title="Odhlásit se" aria-label="Odhlásit se">↪</button>
+      </footer>
+    </aside>
+
+    <section class="workspace-main">
+      <header class="channel-header">
+        <button class="mobile-nav-button" id="mobile-channels-toggle" type="button" aria-label="Otevřít seznam kanálů">☰</button>
+        <span class="channel-header-hash" id="channel-header-icon" aria-hidden="true">#</span>
+        <div class="channel-header-copy">
+          <h1 id="channel-title">novinky</h1>
+          <p id="channel-description">Dění v týmu ALT-F4 Allstars</p>
+        </div>
+        <div class="channel-header-actions">
+          <span class="header-team-label">ALT-F4 ALLSTARS</span>
+          <button class="mobile-nav-button" id="mobile-members-toggle" type="button" aria-label="Otevřít seznam hráčů">♙</button>
+        </div>
+      </header>
+
+      <section class="channel-content" id="channel-content" aria-live="polite"></section>
+
+      <form class="chat-composer hidden" id="chat-form">
+        <div class="reply-context hidden" id="reply-context">
+          <div class="reply-context-copy">
+            <strong id="reply-context-author"></strong>
+            <span id="reply-context-body"></span>
+          </div>
+          <button class="reply-context-clear" id="reply-context-clear" type="button" title="Zrušit odpověď" aria-label="Zrušit odpověď">×</button>
+        </div>
+        <div class="composer-row">
+          <label class="sr-only" for="chat-message">Napiš zprávu</label>
+          <input id="chat-message" name="message" maxlength="1000" autocomplete="off" placeholder="Napiš zprávu…">
+          <button class="composer-send" type="submit" title="Odeslat zprávu" aria-label="Odeslat zprávu">➤</button>
+        </div>
+      </form>
+    </section>
+
+    <aside class="member-sidebar" id="member-sidebar" aria-label="Seznam hráčů">
+      <header class="member-header">ČLENOVÉ TÝMU <span id="member-count">0</span></header>
+      <div class="member-list" id="player-list"></div>
+    </aside>
+    <div class="workspace-backdrop" id="workspace-backdrop"></div>
+  </main>
+
+  <!-- Registrace krok 1: uživatelské jméno + invite kód -->
+  <div id="register-step-1" class="register-container hidden">
+    <div class="login-card">
+      <h2>Nová registrace</h2>
+      <form id="register-form-1">
+        <div class="input-group">
+          <label for="reg-username">Přezdívka</label>
+          <input
+            type="text"
+            id="reg-username"
+            name="username"
+            placeholder="Hrac123"
+            autocomplete="off"
+            required
+          >
+        </div>
+        <div class="input-group">
+          <label for="reg-invite-code">Jednorázový kód</label>
+          <input
+            type="text"
+            id="reg-invite-code"
+            name="invite_code"
+            maxlength="8"
+            placeholder="ABCD1234"
+            autocomplete="off"
+            required
+          >
+        </div>
+        <button type="submit" class="btn-login">Další krok</button>
+        <p class="form-hint">Kód obdržíte od administrátora týmu.</p>
+      </form>
+      <p class="back-link">
+        <a href="#" id="back-to-login">Zpět na přihlášení</a>
+      </p>
+    </div>
+  </div>
+
+  <!-- Registrace krok 2: QR kód + 2FA verifikace -->
+  <div id="register-step-2" class="register-container hidden">
+    <div class="login-card">
+      <h2>Dokončete registraci</h2>
+      <p class="qr-instruction">Naskenujte tento kód do aplikace Google Authenticator:</p>
+      <div class="qr-container">
+        <img id="qr-code-img" src="" alt="QR kód pro 2FA">
+      </div>
+      <details class="qr-manual-key">
+        <summary>Nelze naskenovat QR? Zobrazit setup klíč</summary>
+        <p class="qr-secret" id="qr-secret"></p>
+      </details>
+      <form id="register-form-2">
+        <div class="input-group">
+          <label for="reg-totp-code">Šestimístný kód z aplikace</label>
+          <input
+            type="text"
+            id="reg-totp-code"
+            name="totp_code"
+            maxlength="6"
+            placeholder="123456"
+            autocomplete="off"
+            required
+          >
+        </div>
+        <button type="submit" class="btn-login">Potvrdit registraci</button>
+      </form>
+      <p class="back-link">
+        <a href="#" id="back-to-step-1">Zpět</a>
+      </p>
+    </div>
+  </div>
+
+  <!-- Registrace úspěšná -->
+  <div id="register-success" class="register-container hidden">
+    <div class="login-card">
+      <h2 class="success-title">✓ Registrace dokončena!</h2>
+      <p>Váš účet byl úspěšně vytvořen a 2FA ověřen.</p>
+      <button class="btn-login" onclick="window.location.reload()">Přihlásit se</button>
+    </div>
+  </div>
+
+  <script src="script.js" defer></script>
+</body>
+</html>

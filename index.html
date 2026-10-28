@@ -1,0 +1,482 @@
+<!DOCTYPE html>
+<html lang="cs">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Herní tým – Přihlášení</title>
+  <link rel="stylesheet" href="style.css?v=20261024an">
+</head>
+<body>
+
+  <!-- Úvodní animace s logem -->
+  <div id="intro-overlay" class="intro-overlay">
+    <video id="intro-video" class="intro-video" muted playsinline preload="auto" poster="/photo/team-logo.jpg" aria-hidden="true">
+      <source src="/video/intro.mp4" type="video/mp4">
+    </video>
+    <button id="intro-skip" class="intro-skip" type="button">Přeskočit</button>
+  </div>
+
+  <!-- Přihlašovací formulář (skrytý při startu) -->
+  <div id="login-container" class="login-container">
+    <div class="login-card">
+      <h2>Přihlášení</h2>
+      <form id="login-form">
+        <div class="input-group">
+          <label for="login-username">Přezdívka</label>
+          <input
+            type="text"
+            id="login-username"
+            name="username"
+            placeholder="Hrac123"
+            autocomplete="off"
+            required
+          >
+        </div>
+        <div class="input-group">
+          <label for="2fa-code">2FA kód</label>
+          <input
+            type="text"
+            id="2fa-code"
+            name="2fa-code"
+            maxlength="6"
+            placeholder="123456"
+            autocomplete="off"
+            required
+          >
+        </div>
+        <button type="submit" class="btn-login">Přihlásit</button>
+      </form>
+      <p class="register-link">
+        Nemáte účet? <a href="#" id="register-link">Nová registrace pomocí kódu</a>
+      </p>
+    </div>
+  </div>
+
+  <main id="community-app" class="community-app hidden">
+    <aside class="channel-sidebar" id="channel-sidebar">
+      <header class="team-header">
+        <img src="/photo/team-logo.jpg" alt="" class="team-header-logo">
+        <div class="team-header-name">
+          <strong>ALT-F4</strong>
+          <span>ALLSTARS</span>
+        </div>
+        <span class="team-header-chevron" aria-hidden="true">⌄</span>
+      </header>
+      <nav class="channel-navigation" id="channel-navigation" aria-label="Kanály"></nav>
+      <footer class="account-footer">
+        <div class="account-avatar" id="account-avatar">?</div>
+        <div class="account-identity">
+          <strong id="current-username">Hráč</strong>
+          <span id="current-role-label">Člen týmu</span>
+        </div>
+                 <button class="icon-button" id="btn-edit-profile" type="button" title="Upravit profil" aria-label="Upravit profil">⚙️</button>
+         <button class="icon-button logout-button" id="logout-button" type="button" title="Odhlásit se" aria-label="Odhlásit se">↪</button>
+      </footer>
+    </aside>
+
+    <section class="workspace-main">
+      <header class="channel-header">
+        <button class="mobile-nav-button" id="mobile-channels-toggle" type="button" aria-label="Otevřít seznam kanálů">☰</button>
+        <span class="channel-header-hash" id="channel-header-icon" aria-hidden="true">#</span>
+        <div class="channel-header-copy">
+          <h1 id="channel-title">novinky</h1>
+          <p id="channel-description">Dění v týmu ALT-F4 Allstars</p>
+        </div>
+        <div class="channel-header-actions">
+          <span class="header-team-label">ALT-F4 ALLSTARS</span>
+          <button class="mobile-nav-button" id="mobile-members-toggle" type="button" aria-label="Otevřít seznam hráčů">♙</button>
+        </div>
+      </header>
+
+      <section class="channel-content" id="channel-content" aria-live="polite"></section>
+      <div id="wiki-container" class="wiki-container hidden" aria-live="polite"></div>
+      <div id="stream-container" class="stream-container hidden" aria-live="polite">
+        <div class="stream-frame-wrapper">
+          <iframe id="stream-embed" class="stream-embed" src="" title="Live Stream" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowfullscreen></iframe>
+        </div>
+        <div class="stream-panel">
+          <div class="stream-status" id="stream-status">Zatím není nastaven žádný stream.</div>
+          <div class="stream-owner-controls hidden" id="stream-owner-controls">
+            <input type="text" id="stream-url-input" class="stream-url-input" placeholder="Twitch kanál nebo YouTube URL/ID" />
+            <button type="button" class="stream-save-btn" id="stream-save-btn">Uložit stream</button>
+          </div>
+        </div>
+      </div>
+
+       <div id="veto-container" class="veto-container hidden" aria-live="polite"></div>
+
+       <div id="hall-of-fame-container" class="hall-of-fame-container hidden" aria-live="polite"></div>
+
+       <div id="scrims-container" class="scrims-container hidden" aria-live="polite"></div>
+
+       <div id="notifications-archive-container" class="notifications-archive-container hidden" aria-live="polite"></div>
+
+      <div class="readonly-banner hidden" id="chat-readonly-notice"><span class="icon">🔒</span> Tento kanál je pouze pro čtení.</div>
+      <form class="chat-composer hidden" id="chat-form">
+        <div class="reply-context hidden" id="reply-context">
+          <div class="reply-context-copy">
+            <strong id="reply-context-author"></strong>
+            <span id="reply-context-body"></span>
+          </div>
+          <button class="reply-context-clear" id="reply-context-clear" type="button" title="Zrušit odpověď" aria-label="Zrušit odpověď">×</button>
+        </div>
+        <div class="composer-row">
+          <label class="sr-only" for="chat-message">Napiš zprávu</label>
+          <input id="chat-message" name="message" maxlength="1000" autocomplete="off" placeholder="Napiš zprávu…">
+          <button type="button" class="chat-attach-btn" id="chat-attach-btn" title="Nahrát obrázek" aria-label="Nahrát obrázek">📎</button>
+          <input type="file" id="chat-file-input" accept="image/*" class="hidden">
+          <button class="composer-send" type="submit" title="Odeslat zprávu" aria-label="Odeslat zprávu">➤</button>
+        </div>
+      </form>
+    </section>
+
+    <aside class="member-sidebar" id="member-sidebar" aria-label="Seznam hráčů">
+      <header class="member-header">ČLENOVÉ TÝMU <span id="member-count">0</span></header>
+      <div class="member-list" id="player-list"></div>
+    </aside>
+    <div class="workspace-backdrop" id="workspace-backdrop"></div>
+  </main>
+
+  <!-- Registrace krok 1: uživatelské jméno + invite kód -->
+  <div id="register-step-1" class="register-container hidden">
+    <div class="login-card">
+      <h2>Nová registrace</h2>
+      <form id="register-form-1">
+        <div class="input-group">
+          <label for="reg-username">Přezdívka</label>
+          <input
+            type="text"
+            id="reg-username"
+            name="username"
+            placeholder="Hrac123"
+            autocomplete="off"
+            required
+          >
+        </div>
+        <div class="input-group">
+          <label for="reg-invite-code">Jednorázový kód</label>
+          <input
+            type="text"
+            id="reg-invite-code"
+            name="invite_code"
+            maxlength="8"
+            placeholder="ABCD1234"
+            autocomplete="off"
+            required
+          >
+        </div>
+        <button type="submit" class="btn-login">Další krok</button>
+        <p class="form-hint">Kód obdržíte od administrátora týmu.</p>
+      </form>
+      <p class="back-link">
+        <a href="#" id="back-to-login">Zpět na přihlášení</a>
+      </p>
+    </div>
+  </div>
+
+  <!-- Registrace krok 2: QR kód + 2FA verifikace -->
+  <div id="register-step-2" class="register-container hidden">
+    <div class="login-card">
+      <h2>Dokončete registraci</h2>
+      <p class="qr-instruction">Naskenujte tento kód do aplikace Google Authenticator:</p>
+      <div class="qr-container">
+        <img id="qr-code-img" src="" alt="QR kód pro 2FA">
+      </div>
+      <details class="qr-manual-key">
+        <summary>Nelze naskenovat QR? Zobrazit setup klíč</summary>
+        <p class="qr-secret" id="qr-secret"></p>
+      </details>
+      <form id="register-form-2">
+        <div class="input-group">
+          <label for="reg-totp-code">Šestimístný kód z aplikace</label>
+          <input
+            type="text"
+            id="reg-totp-code"
+            name="totp_code"
+            maxlength="6"
+            placeholder="123456"
+            autocomplete="off"
+            required
+          >
+        </div>
+        <button type="submit" class="btn-login">Potvrdit registraci</button>
+      </form>
+      <p class="back-link">
+        <a href="#" id="back-to-step-1">Zpět</a>
+      </p>
+    </div>
+  </div>
+
+  <!-- Registrace úspěšná -->
+  <div id="register-success" class="register-container hidden">
+    <div class="login-card">
+      <h2 class="success-title">✓ Registrace dokončena!</h2>
+      <p>Váš účet byl úspěšně vytvořen a 2FA ověřen.</p>
+      <button class="btn-login" onclick="window.location.reload()">Přihlásit se</button>
+    </div>
+  </div>
+
+  <!-- Správa týmu (modal) -->
+  <div id="team-management-modal" class="admin-modal hidden" aria-hidden="true">
+    <div class="admin-modal-card">
+      <header class="admin-modal-header">
+        <div>
+          <p class="news-kicker">ALT-F4 ALLSTARS · OWNER</p>
+          <h2>Správa týmu</h2>
+        </div>
+        <button type="button" class="admin-close-button" id="admin-management-close" aria-label="Zavřít správu týmu">×</button>
+      </header>
+
+      <div class="admin-toolbar">
+        <button id="btn-create-category" class="admin-btn" type="button">+ Nová záložka</button>
+        <button id="btn-create-channel" class="admin-btn" type="button">+ Nový kanál</button>
+      </div>
+
+      <p class="admin-status" id="admin-management-status" role="status" aria-live="polite"></p>
+
+      <section class="admin-form-panel hidden" id="admin-category-form-panel">
+        <h3 id="admin-category-form-title">Nová záložka</h3>
+        <form class="admin-form" id="admin-category-form">
+          <input type="hidden" id="admin-category-mode" value="create">
+          <input type="hidden" id="admin-category-id-original">
+          <label for="admin-category-id">ID záložky</label>
+          <input id="admin-category-id" required minlength="2" maxlength="32" pattern="[a-z0-9-]+">
+          <label for="admin-category-name">Název</label>
+          <input id="admin-category-name" required minlength="2" maxlength="32">
+          <label for="admin-category-type">Typ</label>
+          <select id="admin-category-type">
+            <option value="community">Komunita</option>
+            <option value="info">Informace</option>
+            <option value="owner">Pouze vlastník</option>
+          </select>
+          <label for="admin-category-sort">Řazení</label>
+          <input id="admin-category-sort" type="number" min="0" value="0">
+          <div class="admin-form-actions">
+            <button type="submit" class="admin-btn">Uložit</button>
+            <button type="button" class="admin-secondary-btn" id="admin-category-cancel">Zrušit</button>
+          </div>
+        </form>
+      </section>
+
+      <section class="admin-form-panel hidden" id="admin-channel-form-panel">
+        <h3 id="admin-channel-form-title">Nový kanál</h3>
+        <form class="admin-form" id="admin-channel-form">
+          <input type="hidden" id="admin-channel-mode" value="create">
+          <input type="hidden" id="admin-channel-id-original">
+          <label for="admin-channel-id">ID kanálu</label>
+          <input id="admin-channel-id" required minlength="2" maxlength="32" pattern="[a-z0-9-]+">
+          <label for="admin-channel-name">Název</label>
+          <input id="admin-channel-name" required minlength="2" maxlength="32">
+          <label for="admin-channel-description">Popis</label>
+          <textarea id="admin-channel-description" maxlength="120" rows="3"></textarea>
+          <label for="admin-channel-group">Záložka</label>
+          <select id="admin-channel-group" required></select>
+          <label for="admin-channel-sort">Řazení</label>
+          <input id="admin-channel-sort" type="number" min="0" value="0">
+          <label class="admin-checkbox" for="admin-channel-readonly">
+            <input type="checkbox" id="admin-channel-readonly">
+            Kanál pouze pro čtení (mohou psát jen majitelé)
+          </label>
+          <div class="admin-form-actions">
+            <button type="submit" class="admin-btn">Uložit</button>
+            <button type="button" class="admin-secondary-btn" id="admin-channel-cancel">Zrušit</button>
+          </div>
+        </form>
+      </section>
+
+      <div class="admin-columns">
+        <section>
+          <h3>Záložky</h3>
+          <div id="admin-categories" class="admin-list"></div>
+        </section>
+        <section>
+          <h3>Kanály</h3>
+          <div id="admin-channels" class="admin-list"></div>
+        </section>
+      </div>
+    </div>
+  </div>
+
+  <button id="dm-floating-btn" type="button" class="hidden" aria-label="Soukromé zprávy" title="Soukromé zprávy">💬<span id="dm-notification-badge" class="notification-badge hidden"></span></button>
+  <div id="dm-widget" class="dm-widget hidden" aria-hidden="true">
+    <header class="dm-widget-header">
+      <strong>Soukromé zprávy</strong>
+      <button type="button" id="dm-close-btn" class="dm-close-btn" aria-label="Zavřít">×</button>
+    </header>
+    <div class="dm-widget-body">
+      <label class="sr-only" for="dm-user-select">Uživatel</label>
+      <select id="dm-user-select">
+        <option value="">Vyber uživatele…</option>
+      </select>
+      <div id="dm-messages" class="dm-messages"></div>
+      <form id="dm-form" class="dm-form">
+        <input id="dm-input" type="text" maxlength="1000" placeholder="Napiš zprávu…" autocomplete="off">
+        <button type="button" class="dm-attach-btn" id="dm-attach-btn" title="Nahrát obrázek" aria-label="Nahrát obrázek">📎</button>
+        <input type="file" id="dm-file-input" accept="image/*" class="hidden">
+        <button type="submit" class="dm-send-btn" aria-label="Odeslat">➤</button>
+      </form>
+    </div>
+  </div>
+
+  <div id="create-event-modal" class="admin-modal hidden" aria-hidden="true">
+    <div class="admin-modal-card">
+      <header class="admin-modal-header">
+        <div>
+          <p class="news-kicker">ALT-F4 ALLSTARS · TURNAJE</p>
+          <h2>Nová akce</h2>
+        </div>
+        <button type="button" class="admin-close-button" id="create-event-modal-close" aria-label="Zavřít">×</button>
+      </header>
+      <form class="admin-form" id="create-event-form">
+        <label for="event-title">Název</label>
+        <input id="event-title" required minlength="2" maxlength="80">
+        <label for="event-description">Popis</label>
+        <textarea id="event-description" maxlength="500" rows="3"></textarea>
+        <label for="event-date">Datum a čas</label>
+        <input id="event-date" type="datetime-local" required>
+        <div class="admin-form-actions">
+          <button type="submit" class="admin-btn">Vytvořit</button>
+          <button type="button" class="admin-secondary-btn" id="create-event-cancel">Zrušit</button>
+        </div>
+      </form>
+      <p class="admin-status" id="create-event-status" role="status" aria-live="polite"></p>
+    </div>
+  </div>
+
+<div id="hall-of-fame-modal" class="admin-modal hidden" aria-hidden="true">
+    <div class="admin-modal-card">
+      <header class="admin-modal-header">
+        <div>
+          <p class="news-kicker">ALT-F4 ALLSTARS · SÍŇ SLÁVY</p>
+          <h2>Přidat ocenění</h2>
+        </div>
+        <button type="button" class="admin-close-button" id="hall-of-fame-modal-close" aria-label="Zavřít">×</button>
+      </header>
+      <form class="admin-form" id="hall-of-fame-form">
+        <label for="hof-title">Název ocenění / milníku</label>
+        <input id="hof-title" required minlength="2" maxlength="120" placeholder="MVP měsíce Leden">
+        <label for="hof-player">Hráč</label>
+        <input id="hof-player" required minlength="2" maxlength="64" placeholder="Jméno hráče">
+        <label for="hof-category">Kategorie</label>
+        <select id="hof-category">
+          <option value="mvp">MVP</option>
+          <option value="milestone">Milník</option>
+          <option value="tournament_win">Výhra turnaje</option>
+        </select>
+        <label for="hof-description">Popis úspěchu</label>
+        <textarea id="hof-description" maxlength="1000" rows="4" placeholder="Detaily úspěchu..."></textarea>
+        <div class="admin-form-actions">
+          <button type="submit" class="admin-btn">Přidat</button>
+          <button type="button" class="admin-secondary-btn" id="hall-of-fame-cancel">Zrušit</button>
+        </div>
+      </form>
+      <p class="admin-status" id="hall-of-fame-status" role="status" aria-live="polite"></p>
+    </div>
+  </div>
+
+  <div id="scrim-modal" class="admin-modal hidden" aria-hidden="true">
+    <div class="admin-modal-card">
+      <header class="admin-modal-header">
+        <div>
+          <p class="news-kicker">ALT-F4 ALLSTARS · SCRIM SCHEDULE</p>
+          <h2>Naplánovat scrim</h2>
+        </div>
+        <button type="button" class="admin-close-button" id="scrim-modal-close" aria-label="Zavřít">×</button>
+      </header>
+      <form class="admin-form" id="scrim-form">
+        <label for="scrim-opponent">Soupeř (tým)</label>
+        <input id="scrim-opponent" required minlength="2" maxlength="120" placeholder="Název soupeřova týmu">
+        <label for="scrim-time">Datum a čas</label>
+        <input id="scrim-time" type="datetime-local" required>
+        <label for="scrim-server">Server / lobby kód</label>
+        <input id="scrim-server" maxlength="200" placeholder="IP adresa nebo kód lobby">
+        <div class="admin-form-actions">
+          <button type="submit" class="admin-btn">Naplánovat</button>
+          <button type="button" class="admin-secondary-btn" id="scrim-cancel">Zrušit</button>
+        </div>
+      </form>
+      <p class="admin-status" id="scrim-status" role="status" aria-live="polite"></p>
+    </div>
+  </div>
+  <div id="profile-modal" class="admin-modal hidden" aria-hidden="true">
+    <div class="admin-modal-card">
+      <header class="admin-modal-header">
+        <div>
+          <p class="news-kicker">ALT-F4 ALLSTARS · PROFIL</p>
+          <h2>Upravit profil</h2>
+        </div>
+        <button type="button" class="admin-close-button" id="profile-modal-close" aria-label="Zavřít úpravu profilu">×</button>
+      </header>
+      <form class="admin-form" id="profile-form">
+        <label for="profile-username">Přezdívka</label>
+        <input id="profile-username" required minlength="2" maxlength="32">
+        <label for="profile-bio">O mně</label>
+        <textarea id="profile-bio" maxlength="500" rows="3"></textarea>
+        <label for="profile-avatar-url">URL profilového obrázku</label>
+        <input id="profile-avatar-url" type="url" placeholder="https://...">
+        <label for="profile-gaming-rank">Herní rank / odznáček</label>
+        <input id="profile-gaming-rank" maxlength="64" placeholder="Faceit Lvl 10, Valorant Radiant...">
+        <div class="admin-form-actions">
+          <button type="submit" class="admin-btn">Uložit</button>
+          <button type="button" class="admin-secondary-btn" id="profile-cancel">Zrušit</button>
+        </div>
+      </form>
+      <p class="admin-status" id="profile-status" role="status" aria-live="polite"></p>
+    </div>
+  </div>
+
+  <script src="script.js?v=20261024am" defer></script>
+  <div id="wiki-modal" class="admin-modal hidden" aria-hidden="true">
+    <div class="admin-modal-card">
+      <header class="admin-modal-header">
+        <div>
+          <p class="news-kicker">ALT-F4 ALLSTARS · WIKI</p>
+          <h2 id="wiki-modal-title">Nová stránka</h2>
+        </div>
+        <button type="button" class="admin-close-button" id="wiki-modal-close" aria-label="Zavřít">×</button>
+      </header>
+      <form id="wiki-form" class="admin-form">
+        <input type="hidden" id="wiki-page-id" value="">
+        <label for="wiki-title">Nadpis</label>
+        <input id="wiki-title" required maxlength="120">
+        <label for="wiki-content">Obsah</label>
+        <textarea id="wiki-content" required rows="12"></textarea>
+        <div class="admin-form-actions">
+          <button type="submit" class="admin-btn">Uložit</button>
+          <button type="button" class="admin-secondary-btn" id="wiki-cancel">Zrušit</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <div id="match-modal" class="admin-modal hidden" aria-hidden="true">
+    <div class="admin-modal-card">
+      <header class="admin-modal-header">
+        <div>
+          <p class="news-kicker">ALT-F4 ALLSTARS · VÝSLEDKY</p>
+          <h2 id="match-modal-title">Přidat zápas</h2>
+        </div>
+        <button type="button" class="admin-close-button" id="match-modal-close" aria-label="Zavřít">×</button>
+      </header>
+      <form id="match-form" class="admin-form">
+        <label for="match-opponent">Soupeř</label>
+        <input id="match-opponent" required maxlength="80">
+        <label for="match-result">Výsledek</label>
+        <select id="match-result" required>
+          <option value="win">Výhra</option>
+          <option value="loss">Prohra</option>
+        </select>
+        <label for="match-score">Skóre</label>
+        <input id="match-score" maxlength="20" placeholder="13:7">
+        <label for="match-map">Mapa</label>
+        <input id="match-map" maxlength="40" placeholder="Mirage">
+        <div class="admin-form-actions">
+          <button type="submit" class="admin-btn">Uložit</button>
+          <button type="button" class="admin-secondary-btn" id="match-cancel">Zrušit</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+</body>
+</html>

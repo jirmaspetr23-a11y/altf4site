@@ -1,0 +1,1096 @@
+/**
+ * Herní tým – přihlašovací a registrační stránka
+ * Spravuje úvodní animaci, přihlášení (2FA) a dvoufázovou registraci s TOTP.
+ */
+
+(function () {
+  const INTRO_DURATION = 9000;
+  const INTRO_FALLBACK_DURATION = 2800;
+
+  const introOverlay = document.getElementById('intro-overlay');
+  const introVideo = document.getElementById('intro-video');
+  const loginContainer = document.getElementById('login-container');
+  const communityApp = document.getElementById('community-app');
+  const channelNavigation = document.getElementById('channel-navigation');
+  const channelContent = document.getElementById('channel-content');
+  const channelTitle = document.getElementById('channel-title');
+  const channelDescription = document.getElementById('channel-description');
+  const channelHeaderIcon = document.getElementById('channel-header-icon');
+  const playerList = document.getElementById('player-list');
+  const memberCount = document.getElementById('member-count');
+  const currentUsername = document.getElementById('current-username');
+  const currentRoleLabel = document.getElementById('current-role-label');
+  const accountAvatar = document.getElementById('account-avatar');
+  const chatForm = document.getElementById('chat-form');
+  const chatInput = document.getElementById('chat-message');
+  const replyContext = document.getElementById('reply-context');
+  const replyContextAuthor = document.getElementById('reply-context-author');
+  const replyContextBody = document.getElementById('reply-context-body');
+  const replyContextClear = document.getElementById('reply-context-clear');
+  const mobileChannelsToggle = document.getElementById('mobile-channels-toggle');
+  const mobileMembersToggle = document.getElementById('mobile-members-toggle');
+  const workspaceBackdrop = document.getElementById('workspace-backdrop');
+
+    let channelGroups = [];
+  let channels = [];
+  let activeChannelId = 'news';
+  let sessionToken = '';
+  let currentRole = 'member';
+  let messagePollTimer = null;
+  let replyTarget = null;
+  let currentMessages = [];
+
+  // Sestaví hierarchii skupin → kanály ze serverových dat (skupiny + kanály).
+  function buildChannelGroups(serverChannels, serverGroups) {
+    const groupMap = new Map();
+    (serverGroups || []).forEach(g => {
+      groupMap.set(g.group_id, { group_id: g.group_id, name: g.name, type: g.type, sort_order: g.sort_order, channels: [] });
+    });
+    // Výchozí skupiny, pokud server ještě nevrátí žádné
+    if (!groupMap.has('info')) groupMap.set('info', { group_id: 'info', name: 'INFORMACE', type: 'info', sort_order: 1, channels: [] });
+    if (!groupMap.has('community')) groupMap.set('community', { group_id: 'community', name: 'KOMUNITA', type: 'community', sort_order: 2, channels: [] });
+    if (!groupMap.has('management')) groupMap.set('management', { group_id: 'management', name: 'SPRÁVA', type: 'owner', sort_order: 3, channels: [] });
+
+    (serverChannels || []).forEach(c => {
+      const group = groupMap.get(c.group_id) || groupMap.get('community');
+      if (group) {
+        group.channels.push({
+          id: c.channel_id,
+          label: c.name,
+          description: c.description,
+          type: c.channel_id === 'news' ? 'news' : c.channel_id === 'rules' ? 'rules' : group.type === 'owner' ? 'owner' : 'chat',
+          sort_order: c.sort_order,
+          group_id: c.group_id
+        });
+      }
+    });
+
+    // Seřadit kanály ve skupinách podle sort_order
+    groupMap.forEach(group => {
+      group.channels.sort((a, b) => a.sort_order - b.sort_order);
+    });
+
+    return Array.from(groupMap.values()).sort((a, b) => a.sort_order - b.sort_order);
+  }
+
+  const registerStep1 = document.getElementById('register-step-1');
+  const registerForm1 = document.getElementById('register-form-1');
+  const regUsername = document.getElementById('reg-username');
+  const regInviteCode = document.getElementById('reg-invite-code');
+
+  const registerStep2 = document.getElementById('register-step-2');
+  const registerForm2 = document.getElementById('register-form-2');
+  const qrCodeImg = document.getElementById('qr-code-img');
+  const qrSecret = document.getElementById('qr-secret');
+  const regTotpCode = document.getElementById('reg-totp-code');
+
+  const registerSuccess = document.getElementById('register-success');
+  const logoutButton = document.getElementById('logout-button');
+
+  const registerLink = document.getElementById('register-link');
+  const backToLogin = document.getElementById('back-to-login');
+  const backToStep1 = document.getElementById('back-to-step-1');
+
+  const loginForm = document.getElementById('login-form');
+  if (!introOverlay || !loginContainer) {
+    console.error('Chybí povinné prvky v HTML (intro-overlay / login-container).');
+    return;
+  }
+
+  function showSection(sectionElement) {
+    [loginContainer, registerStep1, registerStep2, registerSuccess, communityApp].forEach(el => {
+      if (el) {
+        el.classList.remove('visible');
+        el.classList.add('hidden');
+      }
+    });
+    if (sectionElement) {
+      sectionElement.classList.remove('hidden');
+      sectionElement.classList.add('visible');
+    }
+  }
+
+  async function apiPost(path, body, token = '') {
+    const response = await fetch(path, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(token ? { Authorization: `Bearer ${token}` } : {})
+      },
+      body: JSON.stringify(body)
+    });
+    const result = await response.json();
+    if (!response.ok) throw new Error(result.error || 'Požadavek se nezdařil.');
+    return result;
+  }
+
+  async function apiGet(path, token) {
+    const response = await fetch(path, {
+      headers: { Authorization: `Bearer ${token}` }
+    });
+    const result = await response.json();
+    if (!response.ok) throw new Error(result.error || 'Požadavek se nezdařil.');
+    return result;
+  }
+
+  async function apiPatch(path, body) {
+    const response = await fetch(path, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${sessionToken}` },
+      body: JSON.stringify(body)
+    });
+    const result = await response.json();
+    if (!response.ok) throw new Error(result.error || 'Požadavek se nezdařil.');
+    return result;
+  }
+
+  async function apiDelete(path) {
+    const response = await fetch(path, {
+      method: 'DELETE',
+      headers: { Authorization: `Bearer ${sessionToken}` }
+    });
+    const result = await response.json();
+    if (!response.ok) throw new Error(result.error || 'Požadavek se nezdařil.');
+    return result;
+  }
+
+  function dismissIntro() {
+    if (introOverlay.style.display === 'none') return;
+    if (introVideo) introVideo.pause();
+
+    if (introOverlay.classList.contains('fade-out')) return;
+    const hideOverlay = () => {
+      introOverlay.style.display = 'none';
+    };
+    introOverlay.classList.add('fade-out');
+    introOverlay.addEventListener('transitionend', hideOverlay, { once: true });
+    setTimeout(hideOverlay, 900);
+  }
+
+  function showLoginForm() {
+    dismissIntro();
+    showSection(loginContainer);
+  }
+
+  function startIntro() {
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches || !introVideo) {
+      showLoginForm();
+      return;
+    }
+
+    const fallbackTimer = setTimeout(showLoginForm, INTRO_DURATION);
+    introVideo.addEventListener('ended', () => {
+      clearTimeout(fallbackTimer);
+      showLoginForm();
+    }, { once: true });
+
+    introVideo.addEventListener('error', () => {
+      clearTimeout(fallbackTimer);
+      setTimeout(showLoginForm, INTRO_FALLBACK_DURATION);
+    }, { once: true });
+
+    introVideo.play().catch(() => {
+      clearTimeout(fallbackTimer);
+      setTimeout(showLoginForm, INTRO_FALLBACK_DURATION);
+    });
+  }
+
+  function initialsFor(name) {
+    return name.trim().split(/\s+/).slice(0, 2).map(part => part[0]).join('').toUpperCase();
+  }
+
+  function renderChannelNavigation() {
+    channelNavigation.replaceChildren();
+    channelGroups.forEach(group => {
+      const visibleChannels = group.channels.filter(channel => channel.type !== 'owner' || currentRole === 'owner');
+      if (!visibleChannels.length && currentRole !== 'owner') return;
+      const section = document.createElement('section');
+      section.className = 'channel-group';
+
+      const heading = document.createElement('h2');
+      heading.className = 'channel-group-heading';
+      heading.textContent = group.name;
+      section.appendChild(heading);
+
+      visibleChannels.forEach(channel => {
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.className = 'channel-button';
+        button.dataset.channelId = channel.id;
+
+        const symbol = document.createElement('span');
+        symbol.className = 'channel-symbol';
+        symbol.setAttribute('aria-hidden', 'true');
+        symbol.textContent = channel.type === 'chat' ? '#' : '✦';
+
+        const label = document.createElement('span');
+        label.className = 'channel-label';
+        label.textContent = channel.label;
+
+        button.append(symbol, label);
+        section.appendChild(button);
+      });
+
+      channelNavigation.appendChild(section);
+    });
+  }
+
+  function renderPlayers(players) {
+    playerList.replaceChildren();
+    memberCount.textContent = String(players.length);
+
+    if (!players.length) {
+      const empty = document.createElement('p');
+      empty.className = 'member-empty';
+      empty.textContent = 'Zatím tu nejsou žádní hráči.';
+      playerList.appendChild(empty);
+      return;
+    }
+
+    players.forEach(player => {
+      const row = document.createElement('div');
+      row.className = `member-row${player.isCurrentUser ? ' current-user' : ''}`;
+
+      const avatar = document.createElement('span');
+      avatar.className = 'member-avatar';
+      avatar.textContent = initialsFor(player.username);
+      avatar.setAttribute('aria-hidden', 'true');
+
+      const identity = document.createElement('span');
+      identity.className = 'member-row-copy';
+      const name = document.createElement('strong');
+      name.textContent = player.username;
+      const role = document.createElement('span');
+      role.textContent = player.isCurrentUser
+        ? (player.role === 'owner' ? 'Ty · vlastník týmu' : 'Ty · člen týmu')
+        : (player.role === 'owner' ? 'Vlastník týmu' : 'Člen týmu');
+      identity.append(name, role);
+      row.append(avatar, identity);
+
+      if (currentRole === 'owner' && !player.isCurrentUser && player.role !== 'owner') {
+        const actions = document.createElement('div');
+        actions.className = 'member-actions';
+        const kickButton = document.createElement('button');
+        kickButton.type = 'button';
+        kickButton.className = 'member-action-button';
+        kickButton.dataset.memberAction = 'kick';
+        kickButton.dataset.memberId = String(player.id);
+        kickButton.title = 'Kicknout hráče';
+        kickButton.setAttribute('aria-label', `Kicknout ${player.username}`);
+        kickButton.textContent = '↗';
+        const banButton = document.createElement('button');
+        banButton.type = 'button';
+        banButton.className = 'member-action-button danger';
+        banButton.dataset.memberAction = 'ban';
+        banButton.dataset.memberId = String(player.id);
+        banButton.title = 'Zabanovat hráče';
+        banButton.setAttribute('aria-label', `Zabanovat ${player.username}`);
+        banButton.textContent = '⊘';
+        actions.append(kickButton, banButton);
+        row.appendChild(actions);
+      }
+      playerList.appendChild(row);
+    });
+  }
+
+  function renderNews() {
+    channelContent.innerHTML = `
+      <div class="news-view">
+        <section class="news-hero">
+          <div class="news-hero-copy">
+            <span class="news-kicker">ALT-F4 ALLSTARS · TÝMOVÝ HUB</span>
+            <h2>Vítej v týmu.</h2>
+            <p>Novinky, domluva na hry a místo pro celý tým.</p>
+          </div>
+        </section>
+        <div class="feed-heading"><h2>Novinky týmu</h2><span>INFORMACE</span></div>
+        <article class="news-item">
+          <div class="news-item-mark" aria-hidden="true">01</div>
+          <div><h3>Domluv si další hru</h3><p>Napiš do <strong>#hledám-partu</strong>, koho hledáš a kdy chceš hrát.</p></div>
+        </article>
+        <article class="news-item">
+          <div class="news-item-mark" aria-hidden="true">02</div>
+          <div><h3>Plány a strategie</h3><p>Rozbory her a týmové taktiky patří do kanálu <strong>#taktiky</strong>.</p></div>
+        </article>
+      </div>`;
+  }
+
+  function renderRules() {
+    channelContent.innerHTML = `
+      <div class="rules-view">
+        <div class="news-kicker">ALT-F4 ALLSTARS · INFORMACE</div>
+        <h2 class="rules-title">Pravidla komunity</h2>
+        <p class="rules-intro">Ať se tu dobře hraje všem.</p>
+        <ol class="rules-list">
+          <li><strong>Respekt</strong><span>Jednej s ostatními férově, i když se hra nepovede.</span></li>
+          <li><strong>Domluva</strong><span>Herní plány řeš v odpovídajícím kanálu a drž se tématu.</span></li>
+          <li><strong>Týmová hra</strong><span>Pomáhej týmu a sdílej užitečné informace.</span></li>
+        </ol>
+      </div>`;
+  }
+
+  function renderOwnerTools() {
+    channelContent.innerHTML = `
+      <div class="owner-tools">
+        <div class="news-kicker">ALT-F4 ALLSTARS · OWNER</div>
+        <h2 class="owner-tools-title">Správa týmu</h2>
+        <p class="owner-tools-intro">Pozvánky, textové kanály a moderace členů.</p>
+        <div class="owner-tool-grid">
+          <section class="owner-tool-section">
+            <h3>Nová pozvánka</h3>
+            <p>Vygeneruj jednorázový kód pro registraci.</p>
+            <form id="owner-invite-form">
+              <button class="owner-action-button" type="submit">Vygenerovat invite</button>
+              <div class="owner-invite-result hidden" id="owner-invite-result" aria-live="polite">
+                <code id="owner-invite-code"></code>
+                <button class="message-action-button" id="owner-invite-copy" type="button" title="Kopírovat kód" aria-label="Kopírovat invite kód">▢</button>
+              </div>
+            </form>
+          </section>
+          <section class="owner-tool-section">
+            <h3>Textové kanály</h3>
+            <p>Uprav název a popis komunitního kanálu.</p>
+            <form class="channel-settings-form" id="owner-channel-form">
+              <label for="owner-channel-select">Kanál</label>
+              <select id="owner-channel-select"></select>
+              <label for="owner-channel-name">Název</label>
+              <input id="owner-channel-name" minlength="2" maxlength="32" required>
+              <label for="owner-channel-description">Popis</label>
+              <textarea id="owner-channel-description" maxlength="120" rows="3"></textarea>
+              <button class="owner-action-button" type="submit">Uložit změny</button>
+            </form>
+          </section>
+          <section class="owner-tool-section">
+            <h3>Nová skupina (zalozka)</h3>
+            <p>Vytvoř novou skupinu kanálů.</p>
+            <form id="owner-group-form">
+              <input id="owner-group-id" placeholder="ID skupiny (např. turnaje)" minlength="2" maxlength="20" required>
+              <input id="owner-group-name" placeholder="Název skupiny" minlength="2" maxlength="32" required>
+              <select id="owner-group-type" required>
+                <option value="community">Komunita</option>
+                <option value="info">Informace</option>
+                <option value="owner">Pouze vlastník</option>
+              </select>
+              <input id="owner-group-sort" type="number" placeholder="Řazení" value="0" min="0">
+              <button class="owner-action-button" type="submit">Vytvořit skupinu</button>
+            </form>
+          </section>
+          <section class="owner-tool-section">
+            <h3>Nový kanál</h3>
+            <p>Přidej nový textový kanál do skupiny.</p>
+            <form id="owner-channel-create-form">
+              <input id="owner-new-channel-id" placeholder="ID kanálu (např. turnaje-cs2)" minlength="2" maxlength="20" required>
+              <input id="owner-new-channel-name" placeholder="Název kanálu" minlength="2" maxlength="32" required>
+              <input id="owner-new-channel-desc" placeholder="Popis" maxlength="120">
+              <select id="owner-new-channel-group"></select>
+              <input id="owner-new-channel-sort" type="number" placeholder="Řazení" value="0" min="0">
+              <button class="owner-action-button" type="submit">Vytvořit kanál</button>
+            </form>
+          </section>
+          <section class="owner-tool-section">
+            <h3>Odstranit kanál nebo skupinu</h3>
+            <p>Výchozí kanály (obecný-chat, taktiky, hledám-partu) nelze smazat.</p>
+            <form id="owner-delete-form">
+              <select id="owner-delete-select"></select>
+              <button class="owner-action-button danger" type="submit">Smazat vybrané</button>
+            </form>
+          </section>
+        </div>
+        <p class="owner-tools-status" id="owner-tools-status" role="status" aria-live="polite"></p>
+      </div>`;
+
+    const channelSelect = channelContent.querySelector('#owner-channel-select');
+    const channelName = channelContent.querySelector('#owner-channel-name');
+    const channelDescriptionInput = channelContent.querySelector('#owner-channel-description');
+    const status = channelContent.querySelector('#owner-tools-status');
+    const inviteResult = channelContent.querySelector('#owner-invite-result');
+    const inviteCode = channelContent.querySelector('#owner-invite-code');
+
+    channels.filter(channel => channel.type === 'chat').forEach(channel => {
+      const option = document.createElement('option');
+      option.value = channel.id;
+      option.textContent = `# ${channel.label}`;
+      channelSelect.appendChild(option);
+    });
+
+    const syncChannelInputs = () => {
+      const channel = channels.find(item => item.id === channelSelect.value);
+      if (!channel) return;
+      channelName.value = channel.label;
+      channelDescriptionInput.value = channel.description;
+    };
+    channelSelect.addEventListener('change', syncChannelInputs);
+    syncChannelInputs();
+
+    channelContent.querySelector('#owner-invite-form').addEventListener('submit', async event => {
+      event.preventDefault();
+      const button = event.currentTarget.querySelector('button[type="submit"]');
+      button.disabled = true;
+      try {
+        const result = await apiPost('/api/community/invites', {}, sessionToken);
+        inviteCode.textContent = result.code;
+        inviteResult.classList.remove('hidden');
+        status.textContent = 'Jednorázová pozvánka je připravená.';
+      } catch (err) {
+        status.textContent = err.message || 'Invite se nepodařilo vytvořit.';
+      } finally {
+        button.disabled = false;
+      }
+    });
+
+    channelContent.querySelector('#owner-invite-copy').addEventListener('click', async () => {
+      try {
+        await navigator.clipboard.writeText(inviteCode.textContent);
+        status.textContent = 'Invite kód zkopírován.';
+      } catch (err) {
+        status.textContent = 'Kód označ a zkopíruj ručně.';
+      }
+    });
+
+    channelContent.querySelector('#owner-channel-form').addEventListener('submit', async event => {
+      event.preventDefault();
+      const channelId = channelSelect.value;
+      const button = event.currentTarget.querySelector('button[type="submit"]');
+      button.disabled = true;
+      try {
+        const result = await apiPatch(`/api/community/channels/${channelId}`, {
+          name: channelName.value,
+          description: channelDescriptionInput.value
+        });
+        const channel = channels.find(item => item.id === channelId);
+        channel.label = result.channel.name;
+        channel.description = result.channel.description;
+        renderChannelNavigation();
+        status.textContent = 'Nastavení kanálu uloženo.';
+      } catch (err) {
+        status.textContent = err.message || 'Kanál se nepodařilo upravit.';
+      } finally {
+        button.disabled = false;
+      }
+    });
+
+    // Naplní selecty pro skupiny a mazání
+    const groupSelect = channelContent.querySelector('#owner-new-channel-group');
+    const deleteSelect = channelContent.querySelector('#owner-delete-select');
+    function refreshSelects() {
+      groupSelect.innerHTML = '';
+      deleteSelect.innerHTML = '';
+      channelGroups.forEach(group => {
+        const gOpt = document.createElement('option');
+        gOpt.value = group.group_id;
+        gOpt.textContent = group.name;
+        groupSelect.appendChild(gOpt);
+        const dOpt = document.createElement('option');
+        dOpt.value = `group:${group.group_id}`;
+        dOpt.textContent = `[Skupina] ${group.name}`;
+        deleteSelect.appendChild(dOpt);
+      });
+      channels.forEach(channel => {
+        const dOpt = document.createElement('option');
+        dOpt.value = `channel:${channel.id}`;
+        dOpt.textContent = `[Kanál] # ${channel.label}`;
+        deleteSelect.appendChild(dOpt);
+      });
+    }
+    refreshSelects();
+
+    // Vytvoření nové skupiny
+    channelContent.querySelector('#owner-group-form').addEventListener('submit', async event => {
+      event.preventDefault();
+      const button = event.currentTarget.querySelector('button[type="submit"]');
+      button.disabled = true;
+      try {
+        const result = await apiPost('/api/admin/channel-groups', {
+          group_id: document.getElementById('owner-group-id').value.trim(),
+          name: document.getElementById('owner-group-name').value.trim(),
+          type: document.getElementById('owner-group-type').value,
+          sort_order: Number(document.getElementById('owner-group-sort').value) || 0
+        }, sessionToken);
+        status.textContent = 'Skupina vytvořena.';
+        document.getElementById('owner-group-form')?.reset();
+        // Obnovit data ze serveru
+        const data = await apiGet('/api/community/channels', sessionToken);
+        channels = (data.channels || []).map(c => ({
+          id: c.channel_id, label: c.name, description: c.description,
+          type: c.group_id === 'management' ? 'owner' : 'chat',
+          sort_order: c.sort_order, group_id: c.group_id
+        }));
+        channelGroups = buildChannelGroups(data.channels, data.groups);
+        renderChannelNavigation();
+        refreshSelects();
+      } catch (err) {
+        console.error(err);
+        status.textContent = err.message || 'Skupinu se nepodařilo vytvořit.';
+      } finally {
+        button.disabled = false;
+      }
+    });
+
+    // Vytvoření nového kanálu
+    channelContent.querySelector('#owner-channel-create-form').addEventListener('submit', async event => {
+      event.preventDefault();
+      const button = event.currentTarget.querySelector('button[type="submit"]');
+      button.disabled = true;
+      try {
+        const result = await apiPost('/api/community/channels', {
+          channel_id: document.getElementById('owner-new-channel-id').value.trim(),
+          name: document.getElementById('owner-new-channel-name').value.trim(),
+          description: document.getElementById('owner-new-channel-desc').value.trim(),
+          group_id: document.getElementById('owner-new-channel-group').value,
+          sort_order: Number(document.getElementById('owner-new-channel-sort').value) || 0
+        }, sessionToken);
+        status.textContent = 'Kanál vytvořen.';
+        document.getElementById('owner-channel-create-form')?.reset();
+        const data = await apiGet('/api/community/channels', sessionToken);
+        channels = (data.channels || []).map(c => ({
+          id: c.channel_id, label: c.name, description: c.description,
+          type: c.group_id === 'management' ? 'owner' : 'chat',
+          sort_order: c.sort_order, group_id: c.group_id
+        }));
+        channelGroups = buildChannelGroups(data.channels, data.groups);
+        renderChannelNavigation();
+        refreshSelects();
+      } catch (err) {
+        console.error(err);
+        status.textContent = err.message || 'Kanál se nepodařilo vytvořit.';
+      } finally {
+        button.disabled = false;
+      }
+    });
+
+    // Smazání kanálu nebo skupiny
+    channelContent.querySelector('#owner-delete-form').addEventListener('submit', async event => {
+      event.preventDefault();
+      const button = event.currentTarget.querySelector('button[type="submit"]');
+      const value = deleteSelect.value;
+      const [type, id] = value.split(':');
+      if (!window.confirm(`Opravdu chceš smazat ${type === 'group' ? 'skupinu' : 'kanál'}?`)) return;
+      button.disabled = true;
+      try {
+        if (type === 'group') {
+          await apiDelete(`/api/admin/channel-groups/${id}`);
+        } else {
+          await apiDelete(`/api/community/channels/${id}`);
+        }
+        status.textContent = 'Smazáno.';
+        const data = await apiGet('/api/community/channels', sessionToken);
+        channels = (data.channels || []).map(c => ({
+          id: c.channel_id, label: c.name, description: c.description,
+          type: c.group_id === 'management' ? 'owner' : 'chat',
+          sort_order: c.sort_order, group_id: c.group_id
+        }));
+        channelGroups = buildChannelGroups(data.channels, data.groups);
+        renderChannelNavigation();
+        refreshSelects();
+      } catch (err) {
+        status.textContent = err.message || 'Nepodařilo se smazat.';
+      } finally {
+        button.disabled = false;
+      }
+    });
+  }
+
+  function formatMessageTime(value) {
+    const timestamp = new Date(`${value.replace(' ', 'T')}Z`);
+    if (Number.isNaN(timestamp.getTime())) return '';
+    return new Intl.DateTimeFormat('cs-CZ', { hour: '2-digit', minute: '2-digit' }).format(timestamp);
+  }
+
+  function renderMessages(messages) {
+    const list = channelContent.querySelector('.message-list');
+    if (!list) return;
+    currentMessages = messages;
+    list.replaceChildren();
+
+    if (!messages.length) {
+      const empty = document.createElement('p');
+      empty.className = 'chat-empty';
+      empty.textContent = 'Tady je zatím klid. Začni konverzaci.';
+      list.appendChild(empty);
+      return;
+    }
+
+    messages.forEach(message => {
+      const row = document.createElement('article');
+      row.className = 'chat-message';
+      if (message.parent_message_id) row.classList.add('is-reply');
+      row.dataset.messageId = String(message.id);
+      const avatar = document.createElement('span');
+      avatar.className = 'message-avatar';
+      avatar.textContent = initialsFor(message.author_name);
+      avatar.setAttribute('aria-hidden', 'true');
+
+      const body = document.createElement('div');
+      const meta = document.createElement('div');
+      meta.className = 'message-meta';
+      const author = document.createElement('strong');
+      author.textContent = message.author_name;
+      const time = document.createElement('time');
+      time.textContent = formatMessageTime(message.created_at);
+      meta.append(author, time);
+      if (message.edited_at) {
+        const edited = document.createElement('span');
+        edited.className = 'message-edited';
+        edited.textContent = '(upraveno)';
+        meta.appendChild(edited);
+      }
+
+      const actions = document.createElement('div');
+      actions.className = 'message-actions';
+      const replyButton = document.createElement('button');
+      replyButton.type = 'button';
+      replyButton.className = 'message-action-button';
+      replyButton.dataset.messageAction = 'reply';
+      replyButton.title = 'Odpovědět';
+      replyButton.setAttribute('aria-label', `Odpovědět uživateli ${message.author_name}`);
+      replyButton.textContent = '↩';
+      actions.appendChild(replyButton);
+      if (message.isOwn) {
+        const editButton = document.createElement('button');
+        editButton.type = 'button';
+        editButton.className = 'message-action-button';
+        editButton.dataset.messageAction = 'edit';
+        editButton.title = 'Upravit zprávu';
+        editButton.setAttribute('aria-label', 'Upravit vlastní zprávu');
+        editButton.textContent = '✎';
+
+        actions.appendChild(editButton);
+      }
+      if (message.isOwn || currentRole === 'owner') {
+        const deleteButton = document.createElement('button');
+        deleteButton.type = 'button';
+        deleteButton.className = 'message-action-button danger';
+        deleteButton.dataset.messageAction = 'delete';
+        deleteButton.title = 'Smazat zprávu';
+        deleteButton.setAttribute('aria-label', 'Smazat vlastní zprávu');
+        deleteButton.textContent = '×';
+        actions.appendChild(deleteButton);
+      }
+      meta.appendChild(actions);
+
+      const content = document.createElement('div');
+      content.className = 'chat-message-content';
+      if (message.parent_message_id && message.reply_author_name) {
+        const preview = document.createElement('blockquote');
+        preview.className = 'reply-preview';
+        const replyAuthor = document.createElement('strong');
+        replyAuthor.textContent = `↩ Odpověď na ${message.reply_author_name}`;
+        const replyBody = document.createElement('span');
+        replyBody.textContent = message.reply_body || '';
+        preview.append(replyAuthor, replyBody);
+        content.appendChild(preview);
+      }
+      content.appendChild(meta);
+      const text = document.createElement('p');
+      text.className = 'chat-message-text';
+      text.textContent = message.body;
+      content.appendChild(text);
+      body.appendChild(content);
+      row.append(avatar, body);
+      list.appendChild(row);
+    });
+    list.scrollTop = list.scrollHeight;
+  }
+
+  async function loadMessages(channelId, force = false) {
+    if (!force && channelContent.querySelector('.message-edit-form')) return;
+    try {
+      const result = await apiGet(`/api/community/messages?channel=${encodeURIComponent(channelId)}`, sessionToken);
+      if (activeChannelId === channelId) renderMessages(result.messages);
+    } catch (err) {
+      if (activeChannelId !== channelId) return;
+      const list = channelContent.querySelector('.message-list');
+      if (list) list.textContent = 'Zprávy se nepodařilo načíst.';
+      console.error(err);
+    }
+  }
+
+  function closeMobilePanels() {
+    communityApp.classList.remove('sidebar-open', 'members-open');
+  }
+
+  function setReplyTarget(message) {
+    replyTarget = message;
+    replyContextAuthor.textContent = `Odpověď pro ${message.author_name}`;
+    replyContextBody.textContent = message.body;
+    replyContext.classList.remove('hidden');
+    chatInput.focus();
+  }
+
+  function clearReplyTarget() {
+    replyTarget = null;
+    replyContext.classList.add('hidden');
+    replyContextAuthor.textContent = '';
+    replyContextBody.textContent = '';
+  }
+
+  function editMessageInline(row, message) {
+    const originalText = row.querySelector('.chat-message-text');
+    if (!originalText) return;
+
+    const form = document.createElement('form');
+    form.className = 'message-edit-form';
+    const textarea = document.createElement('textarea');
+    textarea.maxLength = 1000;
+    textarea.required = true;
+    textarea.value = message.body;
+    const actions = document.createElement('div');
+    actions.className = 'message-edit-actions';
+    const cancel = document.createElement('button');
+    cancel.type = 'button';
+    cancel.textContent = 'Zrušit';
+    cancel.addEventListener('click', () => loadMessages(activeChannelId, true));
+    const save = document.createElement('button');
+    save.type = 'submit';
+    save.textContent = 'Uložit';
+    actions.append(cancel, save);
+    form.append(textarea, actions);
+    originalText.replaceWith(form);
+    textarea.focus();
+    textarea.setSelectionRange(textarea.value.length, textarea.value.length);
+
+    form.addEventListener('submit', async event => {
+      event.preventDefault();
+      save.disabled = true;
+      try {
+        await apiPatch(`/api/community/messages/${message.id}`, { body: textarea.value });
+        await loadMessages(activeChannelId, true);
+      } catch (err) {
+        alert(err.message || 'Zprávu se nepodařilo upravit.');
+        save.disabled = false;
+      }
+    });
+  }
+
+  function selectChannel(channelId) {
+    const channel = channels.find(item => item.id === channelId);
+    if (!channel) return;
+    activeChannelId = channelId;
+    channelTitle.textContent = channel.label;
+    channelDescription.textContent = channel.description;
+    channelHeaderIcon.textContent = channel.type === 'chat' ? '#' : '✦';
+    chatForm.classList.toggle('hidden', channel.type !== 'chat');
+    channelNavigation.querySelectorAll('.channel-button').forEach(button => {
+      button.classList.toggle('active', button.dataset.channelId === channelId);
+      if (button.dataset.channelId === channelId) button.setAttribute('aria-current', 'page');
+      else button.removeAttribute('aria-current');
+    });
+    closeMobilePanels();
+    if (messagePollTimer) clearInterval(messagePollTimer);
+
+    if (channel.type === 'news') {
+      renderNews();
+    } else if (channel.type === 'rules') {
+      renderRules();
+    } else if (channel.type === 'owner' && currentRole === 'owner') {
+      chatForm.classList.add('hidden');
+      renderOwnerTools();
+    } else {
+      channelContent.innerHTML = `
+        <div class="chat-view">
+          <header class="chat-welcome"><h2># ${channel.label}</h2><p>${channel.description}</p></header>
+          <div class="message-list" role="log" aria-live="polite"></div>
+        </div>`;
+      loadMessages(channelId);
+      messagePollTimer = setInterval(() => loadMessages(channelId), 5000);
+      chatInput.placeholder = `Napiš do #${channel.label}…`;
+    }
+  }
+
+  async function openWorkspace(username, token, role = 'member') {
+    dismissIntro();
+    sessionToken = token;
+    currentRole = role;
+    currentUsername.textContent = username;
+    currentRoleLabel.textContent = role === 'owner' ? 'Vlastník týmu' : 'Člen týmu';
+    accountAvatar.textContent = initialsFor(username);
+
+    try {
+      const result = await apiGet('/api/community/channels', sessionToken);
+      channels = (result.channels || []).map(c => ({
+        id: c.channel_id,
+        label: c.name,
+        description: c.description,
+        type: c.group_id === 'management' ? 'owner' : 'chat',
+        sort_order: c.sort_order,
+        group_id: c.group_id
+      }));
+      channelGroups = buildChannelGroups(result.channels, result.groups);
+    } catch (err) {
+      console.error(err);
+    }
+
+    renderChannelNavigation();
+    showSection(communityApp);
+
+    try {
+      const result = await apiGet('/api/community/players', sessionToken);
+      renderPlayers(result.players);
+    } catch (err) {
+      renderPlayers([]);
+      console.error(err);
+    }
+    selectChannel('news');
+  }
+
+  // Obnovíme pouze relaci, kterou server stále považuje za platnou.
+  const storedToken = localStorage.getItem('viper_token');
+  if (storedToken) {
+    document.addEventListener('DOMContentLoaded', async () => {
+      try {
+        const result = await apiGet('/api/session', storedToken);
+        if (!result.success) throw new Error('Neplatná relace.');
+        await openWorkspace(result.username, storedToken, result.role || 'member');
+      } catch (err) {
+        localStorage.removeItem('viper_token');
+        localStorage.removeItem('viper_username');
+        startIntro();
+      }
+    });
+  } else {
+    document.addEventListener('DOMContentLoaded', () => {
+      startIntro();
+    });
+  }
+
+  if (logoutButton) {
+    logoutButton.addEventListener('click', () => {
+      if (messagePollTimer) clearInterval(messagePollTimer);
+      sessionToken = '';
+      closeMobilePanels();
+      localStorage.removeItem('viper_token');
+      localStorage.removeItem('viper_username');
+      if (loginForm) loginForm.reset();
+      showSection(loginContainer);
+    });
+  }
+
+  if (loginForm) {
+    loginForm.addEventListener('submit', async (event) => {
+      event.preventDefault();
+
+      const usernameInput = document.getElementById('login-username');
+      const codeInput = document.getElementById('2fa-code');
+      const username = usernameInput.value.trim();
+      const code = codeInput.value.trim();
+
+      if (!username) {
+        usernameInput.focus();
+        alert('Zadejte prosím svou přezdívku.');
+        return;
+      }
+
+      if (!code) {
+        codeInput.focus();
+        alert('Zadejte prosím 2FA kód.');
+        return;
+      }
+
+      if (code.length !== 6 || !/^\d+$/.test(code)) {
+        codeInput.focus();
+        alert('2FA kód musí obsahovat přesně 6 číslic.');
+        return;
+      }
+
+      try {
+        const result = await apiPost('/api/login', {
+          username: username,
+          totp_code: code
+        });
+
+        if (result.success) {
+          localStorage.setItem('viper_token', result.token);
+          localStorage.setItem('viper_username', result.username);
+          await openWorkspace(result.username, result.token, result.role || 'member');
+        } else {
+          alert(result.error || 'Přihlášení se nezdařilo.');
+        }
+      } catch (err) {
+        console.error(err);
+        alert('Nepodařilo se připojit k serveru.');
+      }
+    });
+  }
+
+  channelNavigation.addEventListener('click', event => {
+    const button = event.target.closest('[data-channel-id]');
+    if (button) selectChannel(button.dataset.channelId);
+  });
+
+  channelContent.addEventListener('click', async event => {
+    const button = event.target.closest('[data-message-action]');
+    if (!button) return;
+    const row = button.closest('.chat-message');
+    const message = currentMessages.find(item => item.id === Number(row?.dataset.messageId));
+    if (!message) return;
+
+    if (button.dataset.messageAction === 'reply') {
+      setReplyTarget(message);
+    } else if (button.dataset.messageAction === 'edit' && message.isOwn) {
+      editMessageInline(row, message);
+    } else if (button.dataset.messageAction === 'delete' && (message.isOwn || currentRole === 'owner')) {
+      if (!window.confirm('Opravdu chceš smazat tuto zprávu?')) return;
+      try {
+        await apiDelete(`/api/community/messages/${message.id}`);
+        await loadMessages(activeChannelId);
+      } catch (err) {
+        alert(err.message || 'Zprávu se nepodařilo smazat.');
+      }
+    }
+  });
+
+  playerList.addEventListener('click', async event => {
+    const button = event.target.closest('[data-member-action]');
+    if (!button || currentRole !== 'owner') return;
+    const memberId = Number(button.dataset.memberId);
+    const memberName = button.closest('.member-row')?.querySelector('.member-row-copy strong')?.textContent || 'hráče';
+    const action = button.dataset.memberAction;
+    const isBan = action === 'ban';
+    const confirmation = isBan
+      ? `Opravdu zabanovat hráče ${memberName}?`
+      : `Opravdu kicknout hráče ${memberName}? Účet bude deaktivován.`;
+    if (!Number.isSafeInteger(memberId) || !window.confirm(confirmation)) return;
+
+    button.disabled = true;
+    try {
+      if (isBan) {
+        await apiPost(`/api/community/members/${memberId}/ban`, { reason: '' }, sessionToken);
+      } else {
+        await apiDelete(`/api/community/members/${memberId}`);
+      }
+      const result = await apiGet('/api/community/players', sessionToken);
+      renderPlayers(result.players);
+    } catch (err) {
+      alert(err.message || 'Akci se nepodařilo provést.');
+      button.disabled = false;
+    }
+  });
+
+  replyContextClear.addEventListener('click', clearReplyTarget);
+
+  chatForm.addEventListener('submit', async event => {
+    event.preventDefault();
+    const body = chatInput.value.trim();
+    if (!body || !sessionToken) return;
+
+    const sendButton = chatForm.querySelector('.composer-send');
+    sendButton.disabled = true;
+    try {
+      await apiPost('/api/community/messages', {
+        channelId: activeChannelId,
+        body,
+        replyTo: replyTarget?.id || null
+      }, sessionToken);
+      chatInput.value = '';
+      clearReplyTarget();
+      await loadMessages(activeChannelId);
+      chatInput.focus();
+    } catch (err) {
+      alert(err.message || 'Zprávu se nepodařilo odeslat.');
+    } finally {
+      sendButton.disabled = false;
+    }
+  });
+
+  mobileChannelsToggle.addEventListener('click', () => {
+    communityApp.classList.toggle('sidebar-open');
+    communityApp.classList.remove('members-open');
+  });
+
+  mobileMembersToggle.addEventListener('click', () => {
+    communityApp.classList.toggle('members-open');
+    communityApp.classList.remove('sidebar-open');
+  });
+
+  workspaceBackdrop.addEventListener('click', closeMobilePanels);
+
+  if (registerLink) {
+    registerLink.addEventListener('click', (event) => {
+      event.preventDefault();
+      showSection(registerStep1);
+    });
+  }
+
+  if (backToLogin) {
+    backToLogin.addEventListener('click', (event) => {
+      event.preventDefault();
+      showSection(loginContainer);
+    });
+  }
+
+  if (registerForm1) {
+    registerForm1.addEventListener('submit', async (event) => {
+      event.preventDefault();
+
+      const username = regUsername.value.trim();
+      const inviteCode = regInviteCode.value.trim();
+
+      if (!username || !inviteCode) {
+        alert('Vyplňte prosím oba údaje.');
+        return;
+      }
+
+      try {
+        const result = await apiPost('/api/register-step-1', {
+          username: username,
+          invite_code: inviteCode
+        });
+
+        if (result.success) {
+          qrCodeImg.src = result.qrCode;
+          qrCodeImg.alt = `QR kód pro ${result.username}`;
+          qrSecret.textContent = result.setupKey;
+          showSection(registerStep2);
+        } else {
+          alert(result.error || 'Chyba při registraci.');
+        }
+      } catch (err) {
+        console.error(err);
+        alert('Nepodařilo se připojit k serveru.');
+      }
+    });
+  }
+
+  if (backToStep1) {
+    backToStep1.addEventListener('click', (event) => {
+      event.preventDefault();
+      showSection(registerStep1);
+    });
+  }
+
+  if (registerForm2) {
+    registerForm2.addEventListener('submit', async (event) => {
+      event.preventDefault();
+
+      const username = regUsername.value.trim();
+      const totpCode = regTotpCode.value.trim();
+
+      if (!totpCode) {
+        alert('Zadejte prosím 6místný kód z aplikace.');
+        return;
+      }
+
+      if (totpCode.length !== 6 || !/^\d+$/.test(totpCode)) {
+        alert('Kód musí obsahovat přesně 6 číslic.');
+        return;
+      }
+
+      try {
+        const result = await apiPost('/api/register-step-2', {
+          username: username,
+          totp_code: totpCode
+        });
+
+        if (result.success) {
+          showSection(registerSuccess);
+        } else {
+          alert(result.error || 'Chyba při ověřování 2FA.');
+        }
+      } catch (err) {
+        console.error(err);
+        alert('Nepodařilo se připojit k serveru.');
+      }
+    });
+  }
+
+})();
