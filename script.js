@@ -2542,6 +2542,17 @@ if (hallOfFameModalClose) hallOfFameModalClose.addEventListener('click', closeHa
     }
   });
 
+// Obsluha pro tlačítko odhlášení
+  if (logoutButton) {
+    logoutButton.addEventListener('click', () => {
+      // Vymaže uložené přihlašovací údaje z prohlížeče
+      localStorage.removeItem('viper_token');
+      localStorage.removeItem('viper_username');
+      
+      // Vrátí uživatele zpět na přihlašovací obrazovku
+      showLoginForm();
+    });
+  }
 
   if (loginForm) {
     loginForm.addEventListener('submit', async (event) => {
