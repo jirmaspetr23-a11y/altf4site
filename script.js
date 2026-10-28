@@ -812,7 +812,25 @@ const scrimStatus = document.getElementById('scrim-status');
   }
 
 // --- renderNews ---
-  function renderNews() {
+  async function renderNews() {
+    let upcomingScrim = null;
+    let recentMatch = null;
+    try {
+      const [scrimsRes, matchesRes] = await Promise.all([
+        apiGet('/api/scrims', sessionToken),
+        apiGet('/api/matches', sessionToken)
+      ]);
+      const scrims = scrimsRes.scrims || [];
+      const now = new Date();
+      const upcoming = scrims
+        .filter(s => s.status !== 'completed' && new Date(s.scrim_time) >= new Date(now.getTime() - 3600000))
+        .sort((a, b) => new Date(a.scrim_time) - new Date(b.scrim_time));
+      upcomingScrim = upcoming[0] || null;
+      const matches = (matchesRes.matches || []).slice().sort((a, b) => new Date(b.played_at) - new Date(a.played_at));
+      recentMatch = matches[0] || null;
+    } catch (err) {
+      console.error(err);
+    }
     channelContent.innerHTML = `
       <div class="news-view">
         <section class="news-hero">
@@ -822,6 +840,20 @@ const scrimStatus = document.getElementById('scrim-status');
             <p>Novinky, domluva na hry a místo pro celý tým.</p>
           </div>
         </section>
+        <div class="news-widgets">
+          <div class="news-widget">
+            <div class="news-widget-title">Další scrim</div>
+            ${upcomingScrim
+              ? `<div class="news-widget-main">${escapeHtml(upcomingScrim.opponent)}</div><div class="news-widget-meta">${escapeHtml(formatDateTime(upcomingScrim.scrim_time))}</div>`
+              : `<div class="news-widget-placeholder">Žádný nadcházející scrim</div>`}
+          </div>
+          <div class="news-widget">
+            <div class="news-widget-title">Poslední zápas</div>
+            ${recentMatch
+              ? `<div class="news-widget-main ${recentMatch.result === 'win' ? 'news-widget-win' : 'news-widget-loss'}">${recentMatch.result === 'win' ? 'Výhra' : 'Prohra'}</div><div class="news-widget-meta">${escapeHtml(recentMatch.opponent)}${recentMatch.score ? ' · ' + escapeHtml(recentMatch.score) : ''}</div>`
+              : `<div class="news-widget-placeholder">Zatím žádné zápasy</div>`}
+          </div>
+        </div>
         <div class="feed-heading"><h2>Novinky týmu</h2><span>INFORMACE</span></div>
         <article class="news-item">
           <div class="news-item-mark" aria-hidden="true">01</div>
