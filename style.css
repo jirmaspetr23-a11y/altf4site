@@ -2677,7 +2677,7 @@ html, body {
     overflow: hidden !important;
 }
 
-.main-content, .content-area, #channel-content, #hall-of-fame-container, #scrims-container, #notifications-archive-container, #wiki-container, .veto-container, .stream-container {
+.main-content, .content-area, #channel-content, #hall-of-fame-container, #scrims-container, #clips-container, #stratbook-container, #notifications-archive-container, #wiki-container, .veto-container, .stream-container {
     flex: 1;
     min-height: 0;
     height: 100%;

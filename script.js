@@ -1,3 +1,81 @@
+// Appended per user request to fix dead clicks:
+document.addEventListener('click', (e) => {
+    const channelItem = e.target.closest('.channel-item, [data-channel], [data-channel-id]');
+    if (channelItem) {
+        const channelId = channelItem.dataset.channelId || channelItem.dataset.channel || channelItem.getAttribute('data-id');
+        if (channelId) {
+            selectChannel(channelId);
+        }
+    }
+});
+
+function selectChannel(channelId) {
+    document.querySelectorAll('.channel-item, .channel-button').forEach(el => el.classList.remove('active'));
+    const activeBtn = document.querySelector(`[data-channel-id="${channelId}"]`);
+    if (activeBtn) activeBtn.classList.add('active');
+
+    ['scrims-container','clips-container','stratbook-container','hall-of-fame-container','wiki-container','veto-container','stream-container','notifications-archive-container'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.classList.add('hidden');
+    });
+    const chatForm = document.getElementById('chat-form');
+    if (chatForm) chatForm.classList.add('hidden');
+
+    const container = document.getElementById('channel-content') || document.querySelector('.channel-content') || document.getElementById('main-content');
+    if (!container) return;
+    container.classList.remove('hidden');
+    container.innerHTML = '';
+
+    if (channelId === 'clips' || channelId === 'Galerie klipů') {
+        renderClipsView(container);
+        return;
+    }
+    if (channelId === 'stratbook' || channelId === 'Stratbook') {
+        renderStratbookView(container);
+        return;
+    }
+    if (channelId === 'novinky' || channelId === 'news') {
+        if (typeof renderNews === 'function') renderNews(container);
+        return;
+    }
+}
+
+function renderClipsView(container) {
+    if (!container) return;
+    container.innerHTML = `
+
+        <div class="clips-container" style="padding: 20px;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                <h2>Galerie klipů</h2>
+                <button class="btn-primary" style="background: #e50914; color: white; border: none; padding: 10px 16px; border-radius: 8px; cursor: pointer;" onclick="alert('Otevřít modální okno pro klip')">+ Přidat klip</button>
+            </div>
+            <div class="clips-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 20px;">
+                <div style="background: #1a1a1a; padding: 20px; border-radius: 12px; border: 1px solid #333;">
+                    <h3 style="margin-bottom: 10px; color: #fff;">Ukázkový klip - Clutch 1v3</h3>
+                    <p style="color: #aaa; font-size: 14px;">Zatím zde nejsou žádné další klipy. Klikněte na Přidat klip.</p>
+                </div>
+            </div>
+        </div>
+    `;
+}
+
+function renderStratbookView(container) {
+    container.innerHTML = `
+        <div class="stratbook-container" style="padding: 20px;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                <h2>Stratbook - Mapové strategie</h2>
+                <button class="btn-primary" style="background: #e50914; color: white; border: none; padding: 10px 16px; border-radius: 8px; cursor: pointer;" onclick="alert('Otevřít modální okno pro taktiku')">+ Přidat taktiku</button>
+            </div>
+            <div class="stratbook-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 20px;">
+                <div style="background: #1a1a1a; padding: 20px; border-radius: 12px; border: 1px solid #333;">
+                    <h3 style="margin-bottom: 10px; color: #fff;">Mirage - A Execute</h3>
+                    <p style="color: #aaa; font-size: 14px;">Rychlý nájezd na A přes smoke v kanálech a archu.</p>
+                </div>
+            </div>
+        </div>
+    `;
+}
+
 /**
  * Herní tým – přihlašovací a registrační stránka
  * Spravuje úvodní animaci, přihlášení (2FA) a dvoufázovou registraci s TOTP.
@@ -702,6 +780,18 @@ const scrimStatus = document.getElementById('scrim-status');
 
 // --- selectChannel ---
   function selectChannel(channelId) {
+    if (channelId === 'clips') {
+      chatForm.classList.add('hidden');
+      if (channelContent) channelContent.classList.remove('hidden');
+      renderClipsView();
+      return;
+    }
+    if (channelId === 'stratbook') {
+      chatForm.classList.add('hidden');
+      if (channelContent) channelContent.classList.remove('hidden');
+      renderStratbookView();
+      return;
+    }
     let channel = channels.find(item => item.id === channelId);
     if (!channel && channelId === 'wiki') {
       channel = { id: 'wiki', label: 'Taktická Wiki', description: 'Týmová wiki a taktická nástěnka', type: 'wiki' };
@@ -741,8 +831,8 @@ const scrimStatus = document.getElementById('scrim-status');
     if (clipsContainer) clipsContainer.classList.toggle('hidden', channel.type !== 'clips');
     if (stratbookContainer) stratbookContainer.classList.toggle('hidden', channel.type !== 'stratbook');
     if (notificationsArchiveContainer) notificationsArchiveContainer.classList.toggle('hidden', channel.type !== 'notifications-archive');
-    if (channel.type !== 'wiki' && channel.type !== 'stream' && channel.type !== 'veto' && channel.type !== 'hall-of-fame' && channel.type !== 'scrims' && channel.type !== 'clips' && channel.type !== 'stratbook' && channel.type !== 'notifications-archive' && channelContent) channelContent.classList.remove('hidden');
-    else if (channelContent && (channel.type === 'wiki' || channel.type === 'stream' || channel.type === 'veto' || channel.type === 'hall-of-fame' || channel.type === 'scrims' || channel.type === 'clips' || channel.type === 'stratbook' || channel.type === 'notifications-archive')) channelContent.classList.add('hidden');
+    if (channel.type !== 'wiki' && channel.type !== 'stream' && channel.type !== 'veto' && channel.type !== 'hall-of-fame' && channel.type !== 'scrims' && channel.type !== 'notifications-archive' && channelContent) channelContent.classList.remove('hidden');
+    else if (channelContent && (channel.type === 'wiki' || channel.type === 'stream' || channel.type === 'veto' || channel.type === 'hall-of-fame' || channel.type === 'scrims' || channel.type === 'notifications-archive')) channelContent.classList.add('hidden');
     chatForm.classList.toggle('hidden', channel.type !== 'chat');
     channelNavigation.querySelectorAll('.channel-button').forEach(button => {
       button.classList.toggle('active', button.dataset.channelId === channelId);
@@ -786,14 +876,14 @@ const scrimStatus = document.getElementById('scrim-status');
       loadScrims();
     } else if (channel.type === 'clips') {
       chatForm.classList.add('hidden');
-      if (channelContent) channelContent.classList.add('hidden');
-      if (clipsContainer) clipsContainer.classList.remove('hidden');
-      loadClips();
+      if (channelContent) channelContent.classList.remove('hidden');
+      if (clipsContainer) clipsContainer.classList.add('hidden');
+      renderClipsView();
     } else if (channel.type === 'stratbook') {
       chatForm.classList.add('hidden');
-      if (channelContent) channelContent.classList.add('hidden');
-      if (stratbookContainer) stratbookContainer.classList.remove('hidden');
-      loadStratbook();
+      if (channelContent) channelContent.classList.remove('hidden');
+      if (stratbookContainer) stratbookContainer.classList.add('hidden');
+      renderStratbookView();
     } else if (channel.type === 'notifications-archive') {
       chatForm.classList.add('hidden');
       if (channelContent) channelContent.classList.add('hidden');
@@ -1242,6 +1332,92 @@ const scrimStatus = document.getElementById('scrim-status');
       console.error(err);
       scrimsContainer.innerHTML = '<div class="scrim-empty"><div class="scrim-empty__icon" aria-hidden="true">⚠️</div><p class="scrim-empty__text">Scrimy se nepodařilo načíst.</p></div>';
     }
+  async function renderClipsView() {
+    if (!channelContent) return;
+    channelContent.innerHTML = '<div class="clips-view"><div class="scrim-empty"><div class="scrim-empty__icon" aria-hidden="true">⏳</div><p class="scrim-empty__text">Načítám klipy…</p></div></div>';
+    try {
+      const result = await apiGet('/api/clips', sessionToken);
+      const clips = result.clips || [];
+      channelContent.innerHTML = `
+        <div class="clips-view">
+          <div class="feed-heading"><h2>Galerie klipů</h2><span>HIGHLIGHTS</span></div>
+          <button type="button" class="admin-btn" id="clip-add-btn">+ Přidat klip</button>
+          <div class="clips-grid">
+            ${clips.length ? clips.map(c => `
+              <article class="clip-card">
+                <h3 class="clip-title">${escapeHtml(c.title)}</h3>
+                <p class="clip-meta">${escapeHtml(c.username)} · ${formatMatchDate(c.created_at)}</p>
+                <p class="clip-desc">${escapeHtml(c.description || '')}</p>
+                <a class="clip-link" href="${escapeHtml(c.url)}" target="_blank" rel="noopener noreferrer">Otevřít klip</a>
+                <div class="clip-footer">
+                  <button type="button" class="admin-secondary-btn clip-vote-btn" data-id="${c.id}">▲ ${c.votes || 0}</button>
+                </div>
+              </article>
+            `).join('') : '<div class="scrim-empty"><div class="scrim-empty__icon" aria-hidden="true">🎬</div><p class="scrim-empty__text">Zatím žádné klipy.</p></div>'}
+          </div>
+        </div>
+      `;
+      const add = document.getElementById('clip-add-btn');
+      if (add) add.addEventListener('click', () => {
+        const title = prompt('Název klipu:');
+        const url = prompt('URL klipu:');
+        const description = prompt('Popis (volitelné):') || '';
+        if (!title || !url) return;
+        apiPost('/api/clips', { title, url, description }, sessionToken).then(() => renderClipsView()).catch(err => alert(err.message));
+      });
+      channelContent.querySelectorAll('.clip-vote-btn').forEach(btn => {
+        btn.addEventListener('click', async () => {
+          try {
+            const r = await apiPost(`/api/clips/${btn.dataset.id}/vote`, {}, sessionToken);
+            btn.textContent = `▲ ${r.votes}`;
+          } catch (err) { console.error(err); }
+        });
+      });
+    } catch (err) {
+      console.error(err);
+      channelContent.innerHTML = '<div class="clips-view"><div class="scrim-empty"><div class="scrim-empty__icon" aria-hidden="true">⚠️</div><p class="scrim-empty__text">Klipy se nepodařilo načíst.</p></div></div>';
+    }
+  }
+
+  async function renderStratbookView() {
+    if (!channelContent) return;
+    channelContent.innerHTML = '<div class="stratbook-view"><div class="scrim-empty"><div class="scrim-empty__icon" aria-hidden="true">⏳</div><p class="scrim-empty__text">Načítám strategie…</p></div></div>';
+    try {
+      const result = await apiGet('/api/stratbook', sessionToken);
+      const strategies = result.strategies || [];
+      channelContent.innerHTML = `
+        <div class="stratbook-view">
+          <div class="feed-heading"><h2>Stratbook</h2><span>TAKTIKY</span></div>
+          <button type="button" class="admin-btn" id="strat-add-btn">+ Přidat taktiku</button>
+          <div class="stratbook-grid">
+            ${strategies.length ? strategies.map(s => `
+              <article class="strat-card">
+                <div class="strat-meta">${escapeHtml(s.map_name || 'Mapa')} · ${escapeHtml(s.side || 'attack')}</div>
+                <h3 class="strat-title">${escapeHtml(s.title)}</h3>
+                <p class="strat-content">${escapeHtml(s.content || '')}</p>
+                ${s.image_url ? `<a class="strat-link" href="${escapeHtml(s.image_url)}" target="_blank" rel="noopener noreferrer">Obrázek/schéma</a>` : ''}
+                <div class="strat-footer">${escapeHtml(s.username || '')} · ${formatMatchDate(s.created_at)}</div>
+              </article>
+            `).join('') : '<div class="scrim-empty"><div class="scrim-empty__icon" aria-hidden="true">🗺️</div><p class="scrim-empty__text">Zatím žádné strategie.</p></div>'}
+          </div>
+        </div>
+      `;
+      const add = document.getElementById('strat-add-btn');
+      if (add) add.addEventListener('click', () => {
+        const map_name = prompt('Mapa (např. Mirage, Ascent, Dust2):') || '';
+        const side = prompt('Strana (attack/defense):') || 'attack';
+        const title = prompt('Název strategie:');
+        const content = prompt('Popis/taktika:');
+        const image_url = prompt('URL obrázku/schématu (volitelné):') || '';
+        if (!title) return;
+        apiPost('/api/stratbook', { map_name, side, title, content, image_url }, sessionToken).then(() => renderStratbookView()).catch(err => alert(err.message));
+      });
+    } catch (err) {
+      console.error(err);
+      channelContent.innerHTML = '<div class="stratbook-view"><div class="scrim-empty"><div class="scrim-empty__icon" aria-hidden="true">⚠️</div><p class="scrim-empty__text">Strategie se nepodařilo načíst.</p></div></div>';
+    }
+  }
+
   async function loadClips() {
     if (!clipsContainer) return;
     clipsContainer.innerHTML = '<div class="scrim-empty"><div class="scrim-empty__icon" aria-hidden="true">⏳</div><p class="scrim-empty__text">Načítám klipy…</p></div>';
@@ -1702,6 +1878,18 @@ const scrimStatus = document.getElementById('scrim-status');
           button.addEventListener('click', (event) => {
             event.preventDefault();
             selectChannel('stream');
+          });
+        }
+        if (channel.id === 'clips') {
+          button.addEventListener('click', (event) => {
+            event.preventDefault();
+            selectChannel('clips');
+          });
+        }
+        if (channel.id === 'stratbook') {
+          button.addEventListener('click', (event) => {
+            event.preventDefault();
+            selectChannel('stratbook');
           });
         }
 
